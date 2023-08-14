@@ -1,1 +1,6 @@
 .pio
+/scripts/normal/
+/scripts/original/
+/scripts/output/
+/scripts/pic/
+/__pycache__/

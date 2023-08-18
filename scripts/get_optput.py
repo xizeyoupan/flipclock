@@ -33,11 +33,22 @@ def get_blank():
     return Image.new("RGB", (width, height), background_color)
 
 
+final_config_file = open(os.path.join(output_dir_path, 'config.txt'), 'w', encoding='utf8')
 config_files = []
+_cnt = 0
 for root, ds, fs in os.walk(normal_dir_path):
     for f in fs:
         if f.endswith(".txt"):
-            config_files.append(os.path.join(root, f))
+            _config_path = os.path.join(root, f)
+            config_files.append(_config_path)
+            _config = open(_config_path, 'r', encoding='utf8')
+            final_config_file.write(str(_cnt) + '\n')
+            _cnt += 1
+            final_config_file.writelines(_config.readlines())
+            final_config_file.flush()
+            _config.close()
+final_config_file.write("-1\n")
+final_config_file.close()
 
 for config_path in config_files:
     normal_group_dir_path = os.path.dirname(config_path)
@@ -49,7 +60,7 @@ for config_path in config_files:
     os.mkdir(top_dir_path)
     os.mkdir(bottom_dir_path)
 
-    pic_files = open(config_path, 'r').readlines()
+    pic_files = open(config_path, 'r', encoding='utf8').readlines()
     pic_files = list(map(lambda x: x.strip().split(), pic_files))
 
     result = []
@@ -60,6 +71,7 @@ for config_path in config_files:
     while i < 40:
         num = (i + 40) % 40
         pic_path = os.path.join(normal_group_dir_path, pic_files[num][0])
+        print("Handle " + pic_path)
         im = Image.open(pic_path)
 
         if dir == "top":

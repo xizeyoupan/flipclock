@@ -82,7 +82,7 @@ group_cnt = []
 
 for index, v in enumerate(groups):
     group_cnt.append(_end + len(v) - 1)
-    f = open(os.path.join(current_path, 'original', f"group{index + 1}", f"group{index + 1}.txt"), 'w')
+    f = open(os.path.join(current_path, 'original', f"group{index + 1}", f"group{index + 1}.txt"), 'w', encoding='utf8')
 
     for i in range(0, _end):
         gen_imgs(i, str(i), index + 1)
@@ -107,7 +107,8 @@ for root, ds, fs in os.walk(pic_path):
                            f"{group_cnt[group_num - 1]}_{base_dir_name}{suffix}")
         shutil.copy(src, dst)
 
-        config = open(os.path.join(current_path, 'original', f"group{group_num}", f"group{group_num}.txt"), 'a')
+        config = open(os.path.join(current_path, 'original', f"group{group_num}", f"group{group_num}.txt"), 'a',
+                      encoding='utf8')
         config.write(f"{group_cnt[group_num - 1]}_{base_dir_name}{suffix} image\n")
         config.flush()
         config.close()
@@ -116,7 +117,8 @@ for index, v in enumerate(groups):
     while group_cnt[index] < 39:
         group_cnt[index] += 1
 
-        config = open(os.path.join(current_path, 'original', f"group{index + 1}", f"group{index + 1}.txt"), 'a')
+        config = open(os.path.join(current_path, 'original', f"group{index + 1}", f"group{index + 1}.txt"), 'a',
+                      encoding='utf8')
         gen_imgs(group_cnt[index], " ", index + 1)
         config.write(f"{group_cnt[index]}_blank.jpg blank\n")
         config.flush()

@@ -2,7 +2,6 @@
 #include "config.h"
 #include "ArduinoJson.h"
 #include "init.h"
-#include "sstream"
 #include "map"
 #include "url_controller.h"
 
@@ -17,6 +16,8 @@ Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 AsyncWebServer server(80);
 
 std::string url_handle;
+std::string post_data;
+bool post_data_end;
 
 std::map<int, int> addr;
 
@@ -45,17 +46,13 @@ void setup() {
         Serial.println("Error setting up MDNS responder!");
     }
 
-    init_server(server, url_handle, &global_request);
+    init_server(server, url_handle, &global_request, post_data, post_data_end);
 
-#include "i2c_controller.h"
-
-    auto dd = devices_scan();
-    Serial.println(dd.size());
 }
 
 void loop() {
 
-    handle_url(global_request, url_handle, doc, stepper);
+    handle_url(global_request, url_handle, doc, stepper, post_data, post_data_end);
     delay(1);
 
 }

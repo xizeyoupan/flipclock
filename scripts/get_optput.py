@@ -34,20 +34,23 @@ def get_blank():
 
 
 final_config_file = open(os.path.join(output_dir_path, 'config.txt'), 'w', encoding='utf8')
+final_config_file.write("contents\n")
+_buff = ""
 config_files = []
 _cnt = 0
 for root, ds, fs in os.walk(normal_dir_path):
     for f in fs:
         if f.endswith(".txt"):
+            _cnt += 1
             _config_path = os.path.join(root, f)
             config_files.append(_config_path)
             _config = open(_config_path, 'r', encoding='utf8')
-            final_config_file.write(str(_cnt) + '\n')
-            _cnt += 1
-            final_config_file.writelines(_config.readlines())
-            final_config_file.flush()
+            _buff += "".join(_config.readlines())
             _config.close()
+final_config_file.write(str(_cnt) + "\n")
+final_config_file.write(_buff)
 final_config_file.write("-1\n")
+final_config_file.flush()
 final_config_file.close()
 
 for config_path in config_files:

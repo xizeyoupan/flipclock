@@ -54,16 +54,26 @@
             const reader = new FileReader();
             reader.onload = () => {
                 let result = reader.result
+                const data = {data: result}
+
+                fetch("/upload_config", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(data)
+                })
+
                 result = result.split("\n")
 
-                let i = 0
-                while (result[i] !== "-1") {
+
+                let num = parseInt(result[1])
+                for (let i = 0; i < num; i++) {
                     let one_flip_content = []
-                    i++
-                    for (let j = 0; j < 40; j++, i++) {
-                        one_flip_content.push(result[i])
+                    for (let j = 0; j < 40; j++) {
+                        one_flip_content.push(result[i * 40 + j + 2])
                     }
-                    one_flip_content = one_flip_content.map(i => i.split(" ")[1])
+                    one_flip_content = one_flip_content.map(e => e.split(" ")[1])
                     flip_contents.push(one_flip_content)
                     flip_pos.push(0)
                 }

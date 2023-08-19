@@ -1,20 +1,34 @@
 
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h>
-#include "Wire.h"
-#include "SPIFFS.h"
+#include "config.h"
+#include "ArduinoJson.h"
+#include "init.h"
+#include "sstream"
+#include "map"
+#include "url_controller.h"
 
+DynamicJsonDocument doc(2048);
+AsyncWebServerRequest *global_request = nullptr;
 
+const char *ssid = "";
+const char *password = "";
 
+Stepper stepper = Stepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
+Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 AsyncWebServer server(80);
 
-void handleRoot(AsyncWebServerRequest *request) {
-    request->send(SPIFFS, "/index.html");
-}
+std::string url_handle;
+
+std::map<int, int> addr;
 
 void setup() {
     SPIFFS.begin();
+    Wire.begin();
     Serial.begin(115200);
+
+    init_all();
+
+    stepper.setSpeed(digitalRead(SW2) ? HIGH_RPM : LOW_RPM);
+
     WiFi.begin(ssid, password);
     Serial.println(String("Connecting to ") + ssid);
 
@@ -27,18 +41,21 @@ void setup() {
     Serial.println("WiFi status:");
     WiFi.printDiag(Serial);
 
-    server.on("/", HTTP_GET, handleRoot);
-    server.begin();
+    if (!MDNS.begin("flip")) {
+        Serial.println("Error setting up MDNS responder!");
+    }
 
-//    myStepper.setSpeed(digitalRead(SW2) ? HIGH_RPM : LOW_RPM);
+    init_server(server, url_handle, &global_request);
 
-//    digitalWrite(CTRL, digitalRead(SW1));
+#include "i2c_controller.h"
 
-//    pixels.begin();
-
-
+    auto dd = devices_scan();
+    Serial.println(dd.size());
 }
 
 void loop() {
+
+    handle_url(global_request, url_handle, doc, stepper);
+    delay(1);
 
 }

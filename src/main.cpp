@@ -20,6 +20,8 @@ bool post_data_end;
 std::map<int, int> addr_map;
 std::map<int, int> zero_pos;
 std::vector<std::vector<std::string>> contents;
+std::map<int, int> flip_pos;
+
 
 void setup() {
     Wire.begin();
@@ -76,7 +78,7 @@ void setup() {
 
 void loop() {
 
-    handle_url(doc, stepper);
+    handle_url(doc);
 //    Serial.println(ESP.getFreeHeap());
     delay(1);
 

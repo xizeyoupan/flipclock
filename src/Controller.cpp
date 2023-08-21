@@ -7,6 +7,7 @@
 #include "DeviceService.h"
 #include "map"
 
+extern Stepper stepper;
 extern AsyncWebServerRequest *global_request;
 extern std::string url_handle;
 extern std::string post_data;
@@ -24,6 +25,7 @@ void init_server(AsyncWebServer &s) {
     routes.insert({"/scan", ""});
     routes.insert({"/upload_config", "json"});
     routes.insert({"/read_config", ""});
+    routes.insert({"/adjust", ""});
 
 
     for (const auto &item: routes) {
@@ -70,8 +72,7 @@ void init_server(AsyncWebServer &s) {
 }
 
 void handle_url(
-        DynamicJsonDocument &doc,
-        Stepper &stepper
+        DynamicJsonDocument &doc
 ) {
 
     doc.garbageCollect();
@@ -104,8 +105,8 @@ void handle_url(
         AsyncWebParameter *p = global_request->getParam("value");
         int steps = p->value().toInt();
 
-        move_test(stepper, steps);
-        doc["state"] = "success";
+//        move_test(stepper, steps);
+        doc["state"] = "not imp";
         doc["data"] = "";
 
 
@@ -149,7 +150,20 @@ void handle_url(
         doc["data"] = format_config();
         doc["state"] = "success";
 
+    } else if (url_handle == "/adjust") {
+        AsyncWebParameter *p = global_request->getParam("addr");
+        int addr = p->value().toInt();
+
+        doc["state"] = "success";
+        doc["data"] = "";
+        serializeJson(doc, *res);
+        global_request->send(res);
+        url_handle = "";
+        reset_pos(addr);
+        return;
     }
+
+
     serializeJson(doc, *res);
     global_request->send(res);
     url_handle = "";

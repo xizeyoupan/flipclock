@@ -12,8 +12,7 @@
 void init_server(AsyncWebServer &s);
 
 void handle_url(
-        DynamicJsonDocument &doc,
-        Stepper &stepper
+        DynamicJsonDocument &doc
 );
 
 #endif //FLIPCLOCK_CONTROLLER_H

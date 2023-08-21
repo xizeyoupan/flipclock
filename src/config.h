@@ -21,6 +21,7 @@
 #define IN3             26
 #define IN4             27
 #define CTRL            17
+#define MAG_PIN         16
 
 #define SW1             33
 #define SW2             32

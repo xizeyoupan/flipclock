@@ -12,7 +12,7 @@
 <div class="single-demo">
     <div class="btn-con">
         <button id="btn1">扫描</button>
-        <button id="btn2">重置</button>
+        <button id="btn2">校准</button>
         <button id="btn3">导入</button>
         <input type="file" name="upload" id="upload" style="display: none;"/>
         <button id="btn4">导出</button>
@@ -29,7 +29,7 @@
 </div>
 </body>
 <script>
-    let chosen_index = 0 // chosen unit index, not map
+    let chosen_index = 0 // chosen unit index, not addr
     let flip_pos = []
     let zero_pos = new Map()
     let addr_map = new Map()
@@ -132,6 +132,22 @@
 
         }
     )
+
+    btn2.addEventListener('click', function () {
+        if (contents.length === 0) return
+
+        let addr;
+        for (let item of addr_map) {
+            if (item[1] === chosen_index) addr = item[0]
+        }
+
+        fetch(`/adjust?addr=${addr}`)
+            .then(res => res.json())
+            .then(res => {
+                console.log(res)
+            })
+    })
+
     btn3.addEventListener('click', function () {
         let up = document.getElementById('upload');
         up.click();
@@ -156,7 +172,7 @@
             .then(res => {
                 parseConfig(res.data)
             })
-        fresh();
+
     });
 
     function set_style(ch, node) {
@@ -281,23 +297,6 @@
         width: 600px;
         text-align: center;
         border: solid 1px #999;
-    }
-
-
-    .flip {
-        display: inline-block;
-        position: relative;
-        width: 140px;
-        height: 210px;
-        line-height: 210px;
-        margin: 10px;
-        border: solid 1px #000;
-        border-radius: 15px;
-        background: #fff;
-        font-size: 120px;
-        color: #fff;
-        box-shadow: 0 0 6px rgba(0, 0, 0, .5);
-        text-align: center;
     }
 
     .flip {

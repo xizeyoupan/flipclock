@@ -79,9 +79,9 @@ for root, ds, fs in os.walk(original_dir_path):
         im.save(os.path.join(_dir, f"{name}.jpg"), quality=95)
 
 for config in config_files:
-    original_config_file = open(config, 'r', encoding='utf8')
+    original_config_file = open(config, 'r', newline='\n', encoding='utf8')
     normal_config_file_name = right_replace(config, "original", "normal")
-    normal_config_file = open(normal_config_file_name, "w", encoding='utf8')
+    normal_config_file = open(normal_config_file_name, "w", newline='\n', encoding='utf8')
     group_dir_name = os.path.dirname(normal_config_file_name)
 
     for line in original_config_file.readlines():

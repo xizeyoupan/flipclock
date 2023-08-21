@@ -29,9 +29,11 @@
 </div>
 </body>
 <script>
-    let chosen_index = 0 // chosen unit
+    let chosen_index = 0 // chosen unit index, not map
     let flip_pos = []
-    let flip_contents = []
+    let zero_pos = new Map()
+    let addr_map = new Map()
+    let contents = []
     let flip_el = []
 
     var btn1 = document.getElementById('btn1')
@@ -41,17 +43,75 @@
     var btn5 = document.getElementById('btn5')
     var btn6 = document.getElementById('btn6')
 
+    function createAndDownloadFile(fileName, content) {
+        const aTag = document.createElement('a');
+        const blob = new Blob([content]);
+        aTag.download = fileName;
+        aTag.href = URL.createObjectURL(blob);
+        aTag.click();
+        URL.revokeObjectURL(blob);
+    }
+
+    function parseConfig(content) {
+        if (content === "") return
+
+
+        flip_pos = []
+        zero_pos = new Map()
+        contents = []
+        flip_el = []
+        addr_map = new Map()
+        let result = content.split("\n")
+        let i = 0
+        while (true) {
+            let line = result[i++]
+            if (line === "-1") break
+
+            if (line === "contents") {
+                let num = parseInt(result[i++])
+                while (num--) {
+                    let one_flip_content = []
+                    for (let j = 0; j < 40; j++) {
+                        one_flip_content.push(result[i++].split(' ')[1])
+                    }
+                    contents.push(one_flip_content)
+                }
+            }
+
+            if (line === "addr_map") {
+                let num = parseInt(result[i++])
+                while (num--) {
+                    const [addr, index] = result[i++].split(' ')
+                    addr_map.set(parseInt(addr), parseInt(index))
+                }
+            }
+
+            if (line === "zero_pos") {
+                let num = parseInt(result[i++])
+                if (num === 0) {
+                    for (let addr of addr_map.keys()) {
+                        zero_pos.set(parseInt(addr), 0)
+                    }
+                } else {
+                    while (num--) {
+                        const [addr, pos] = result[i++].split(' ')
+                        zero_pos.set(parseInt(addr), parseInt(pos))
+                    }
+                }
+            }
+        }
+
+        fresh()
+    }
 
     document.getElementById('upload').addEventListener('change', function () {
             if (this.files.length === 0) {
                 return
             }
 
-            flip_pos = []
-            flip_contents = []
-            flip_el = []
-
             const reader = new FileReader();
+            reader.readAsText(this.files[0]);
+
             reader.onload = () => {
                 let result = reader.result
                 const data = {data: result}
@@ -63,24 +123,12 @@
                     },
                     body: JSON.stringify(data)
                 })
-
-                result = result.split("\n")
-
-
-                let num = parseInt(result[1])
-                for (let i = 0; i < num; i++) {
-                    let one_flip_content = []
-                    for (let j = 0; j < 40; j++) {
-                        one_flip_content.push(result[i * 40 + j + 2])
-                    }
-                    one_flip_content = one_flip_content.map(e => e.split(" ")[1])
-                    flip_contents.push(one_flip_content)
-                    flip_pos.push(0)
-                }
-                fresh()
-                console.log(flip_contents)
+                    .then(res => res.json())
+                    .then(res => {
+                        // console.log(res)
+                        parseConfig(res.data)
+                    })
             }
-            reader.readAsText(this.files[0]);
 
         }
     )
@@ -88,11 +136,26 @@
         let up = document.getElementById('upload');
         up.click();
     })
+
+    btn4.addEventListener('click', function () {
+        fetch("/read_config",)
+            .then(res => res.json())
+            .then(res => {
+                const content = res.data
+                createAndDownloadFile("config_backup", content)
+            })
+    })
+
     btn5.addEventListener('click', function () {
-        flipDown();
+        flipDown(chosen_index);
     })
 
     document.addEventListener('DOMContentLoaded', function () {
+        fetch("/read_config")
+            .then(res => res.json())
+            .then(res => {
+                parseConfig(res.data)
+            })
         fresh();
     });
 
@@ -110,9 +173,24 @@
     }
 
     function fresh() {
+        flip_pos = []
+        if (contents.length === 0) return
+
         const clock = document.getElementById('clock');
+        const flips = document.getElementsByClassName("flip")
+        Array.from(flips).map(node => clock.removeChild(node))
+
+        const _ = Array.from(addr_map.values())
+        contents = contents.map((v, i) => {
+            if (_.includes(i)) {
+                flip_pos.push(0)
+                return v
+            }
+        })
+        contents = contents.filter(i => i)
+
         for (let i = 0; i < flip_pos.length; i++) {
-            const ch = flip_contents[chosen_index][flip_pos[chosen_index]];
+            const ch = contents[chosen_index][flip_pos[chosen_index]];
 
             const outer = document.createElement('div')
             outer.setAttribute("class", "flip down")
@@ -127,49 +205,49 @@
             outer.appendChild(front)
             outer.appendChild(back)
             outer.addEventListener('click', function () {
+                const _prev_chosen_node = flip_el[chosen_index];
+                _prev_chosen_node.classList.remove("chosen")
                 chosen_index = i
+                const _now_chosen_node = flip_el[chosen_index];
+                _now_chosen_node.classList.add("chosen")
             })
 
             outer.addEventListener("wheel", function (event) {
-
                 if (event.deltaY > 0) {
-                    const _prev = chosen_index
-                    chosen_index = i
-                    flipDown()
-                    chosen_index = _prev
+                    flipDown(i)
                 }
             })
 
             flip_el.push(outer)
             clock.appendChild(outer);
         }
-
+        flip_el[chosen_index].classList.add("chosen")
     }
 
     let isFlipping = false
 
     // 向下翻转+1
-    function flipDown() {
+    function flipDown(_chosen_node_index) {
         // 如果处于翻转中，则不执行
         if (isFlipping) {
             return false
         }
 
-        const chosen_node = flip_el[chosen_index];
+        const chosen_node = flip_el[_chosen_node_index];
 
         // 设置前牌的文字
         const front = chosen_node.firstChild
-        const ch = flip_contents[chosen_index][flip_pos[chosen_index]]
+        const ch = contents[_chosen_node_index][flip_pos[_chosen_node_index]]
 
         set_style(ch, front)
 
         // 计算后牌文字（越界判断）
         let next_ch
-        if (flip_pos[chosen_index] + 1 === flip_contents[chosen_index].length) {
-            next_ch = flip_contents[chosen_index][0];
-            flip_pos[chosen_index] = 0;
+        if (flip_pos[_chosen_node_index] + 1 === contents[_chosen_node_index].length) {
+            next_ch = contents[_chosen_node_index][0];
+            flip_pos[_chosen_node_index] = 0;
         } else {
-            next_ch = flip_contents[chosen_index][++flip_pos[chosen_index]]
+            next_ch = contents[_chosen_node_index][++flip_pos[_chosen_node_index]]
         }
 
         // 设置后牌的文字
@@ -177,20 +255,19 @@
         set_style(next_ch, back)
 
         // 添加go，执行翻转动画
-        chosen_node.setAttribute('class', 'flip down go')
+        chosen_node.setAttribute('class', `flip down go chosen`)
 
         // 当翻转态设置为true
         isFlipping = true
         // 翻转结束后，恢复状态
         setTimeout(function () {
             // 去掉go
-            chosen_node.setAttribute('class', 'flip down')
+            chosen_node.setAttribute('class', `flip down ${chosen_index === _chosen_node_index ? 'chosen' : ''}`)
             // 当翻转态设置为false
             isFlipping = false
 
             // 设置前牌文字为+1后的数字
             set_style(next_ch, front)
-
 
         }, 300)
     }
@@ -221,6 +298,26 @@
         color: #fff;
         box-shadow: 0 0 6px rgba(0, 0, 0, .5);
         text-align: center;
+    }
+
+    .flip {
+        display: inline-block;
+        position: relative;
+        width: 140px;
+        height: 210px;
+        line-height: 210px;
+        margin: 10px;
+        border: solid 1px #000;
+        border-radius: 15px;
+        background: #fff;
+        font-size: 120px;
+        color: #fff;
+        box-shadow: 0 0 6px rgba(0, 0, 0, .5);
+        text-align: center;
+    }
+
+    .flip.chosen {
+        box-shadow: 5px 5px 10px 0 rgb(6 52 135);
     }
 
     .flip .digital:before,

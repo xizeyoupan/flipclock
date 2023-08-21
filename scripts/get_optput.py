@@ -33,7 +33,7 @@ def get_blank():
     return Image.new("RGB", (width, height), background_color)
 
 
-final_config_file = open(os.path.join(output_dir_path, 'config.txt'), 'w', encoding='utf8')
+final_config_file = open(os.path.join(output_dir_path, 'config.txt'), 'w', newline='\n', encoding='utf8')
 final_config_file.write("contents\n")
 _buff = ""
 config_files = []
@@ -44,11 +44,14 @@ for root, ds, fs in os.walk(normal_dir_path):
             _cnt += 1
             _config_path = os.path.join(root, f)
             config_files.append(_config_path)
-            _config = open(_config_path, 'r', encoding='utf8')
+            _config = open(_config_path, 'r', newline='\n', encoding='utf8')
             _buff += "".join(_config.readlines())
             _config.close()
 final_config_file.write(str(_cnt) + "\n")
 final_config_file.write(_buff)
+final_config_file.write("-1\n")
+final_config_file.write("-1\n")
+final_config_file.write("-1\n")
 final_config_file.write("-1\n")
 final_config_file.flush()
 final_config_file.close()
@@ -63,7 +66,7 @@ for config_path in config_files:
     os.mkdir(top_dir_path)
     os.mkdir(bottom_dir_path)
 
-    pic_files = open(config_path, 'r', encoding='utf8').readlines()
+    pic_files = open(config_path, 'r', newline='\n', encoding='utf8').readlines()
     pic_files = list(map(lambda x: x.strip().split(), pic_files))
 
     result = []

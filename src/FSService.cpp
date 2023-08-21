@@ -1,0 +1,135 @@
+//
+// Created by liuke on 2023/8/19.
+//
+
+#include "FSService.h"
+#include "sstream"
+#include <string>
+#include "map"
+#include "DeviceService.h"
+
+extern std::map<int, int> addr_map;
+extern std::map<int, int> zero_pos;
+extern std::vector<std::vector<std::string>> contents;
+
+std::string format_config() {
+
+    std::string output("contents\n");
+
+    output.append(std::to_string(contents.size()));
+    output.append("\n");
+    for (const auto &group: contents) {
+        for (const auto &item: group) {
+            output.append(item + '\n');
+        }
+    }
+
+    output.append("addr_map\n");
+    output.append(std::to_string(addr_map.size()));
+    output.append("\n");
+    for (const auto &item: addr_map) {
+        output.append(std::to_string(item.first));
+        output.append(" ");
+        output.append(std::to_string(item.second));
+        output.append("\n");
+    }
+
+    output.append("zero_pos\n");
+    output.append(std::to_string(zero_pos.size()));
+    output.append("\n");
+    for (const auto &item: zero_pos) {
+        output.append(std::to_string(item.first));
+        output.append(" ");
+        output.append(std::to_string(item.second));
+        output.append("\n");
+    }
+
+    output.append("-1\n");
+    return output;
+}
+
+void read_config(const char *config_path, std::string &original_data) {
+
+    auto config_file = SPIFFS.open(config_path);
+
+    if (!config_file) {
+        Serial.println("There was an error opening the config file for reading");
+        return;
+    }
+
+    std::string s;
+    while (config_file.available()) {
+        s += config_file.read();
+    }
+
+    if (s.empty())return;
+
+    original_data = s;
+
+    std::istringstream iss(s);
+    std::istringstream oss;
+    std::string op;
+    while (true) {
+        iss >> op;
+        if (op == "-1")break;
+
+        if (op == "contents") {
+            contents.clear();
+            int num;
+            iss >> num;
+            while (num--) {
+                std::vector<std::string> one_content;
+                for (int i = 0; i < 40; ++i) {
+                    std::string info, content;
+                    iss >> info >> content;
+                    one_content.push_back(info + " " + content);
+//                    Serial.println(info.c_str());
+                }
+                contents.push_back(one_content);
+            }
+        }
+
+        if (op == "addr_map") {
+            if (addr_map.empty()) {
+                addr_map = scan_devices();
+            }
+            int num;
+            iss >> num;
+            while (num--) {
+                int addr, index;
+                iss >> addr >> index;
+                addr_map[addr] = index;
+            }
+        }
+
+        if (op == "zero_pos") {
+            int num;
+            iss >> num;
+            while (num--) {
+                int addr, pos;
+                iss >> addr >> pos;
+                zero_pos[addr] = pos;
+            }
+        }
+    }
+
+    config_file.close();
+}
+
+
+void write_config(const char *config_path, const char *config) {
+
+    auto config_file = SPIFFS.open(config_path, FILE_WRITE);
+    if (!config_file) {
+        Serial.println("There was an error opening the config file for writing");
+        return;
+    }
+
+    if (config_file.print(config)) {
+        Serial.println("Config file was written");;
+    } else {
+        Serial.println("Config file write failed");
+    }
+
+    config_file.close();
+}

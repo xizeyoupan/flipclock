@@ -50,9 +50,6 @@ for root, ds, fs in os.walk(normal_dir_path):
 final_config_file.write(str(_cnt) + "\n")
 final_config_file.write(_buff)
 final_config_file.write("-1\n")
-final_config_file.write("-1\n")
-final_config_file.write("-1\n")
-final_config_file.write("-1\n")
 final_config_file.flush()
 final_config_file.close()
 

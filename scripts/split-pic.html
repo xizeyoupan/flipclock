@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tool</title>
+</head>
+<body>
+
+<div class="container">
+    <cropper-canvas id="canvas" background>
+        <cropper-image id="img" src="https://cdnimg.gamekee.com/wiki2.0/images/w_1600/h_1124/829/287349/2023/5/7/901210.jpg" alt="Picture"
+                       crossOrigin></cropper-image>
+        <cropper-shade hidden></cropper-shade>
+        <cropper-handle action="select" plain></cropper-handle>
+        <cropper-selection id="cropperSelection" initial-coverage="0.5" movable resizable keyboard>
+            <cropper-handle action="move" theme-color="rgba(255, 255, 255, 0.35)"></cropper-handle>
+            <cropper-handle action="n-resize"></cropper-handle>
+            <cropper-handle action="e-resize"></cropper-handle>
+            <cropper-handle action="s-resize"></cropper-handle>
+            <cropper-handle action="w-resize"></cropper-handle>
+            <cropper-handle action="ne-resize"></cropper-handle>
+            <cropper-handle action="nw-resize"></cropper-handle>
+            <cropper-handle action="se-resize"></cropper-handle>
+            <cropper-handle action="sw-resize"></cropper-handle>
+        </cropper-selection>
+
+    </cropper-canvas>
+
+
+    <div class="cropper-viewers">
+        <cropper-viewer selection="#cropperSelection"></cropper-viewer>
+
+        <div class="single-demo">
+            <div class="btn-con">
+                <button id="btn3">从文件导入</button>
+                <input type="file" name="upload" id="upload" accept="image/*" style="display: none;"/>
+            </div>
+            <div class="btn-con">
+                <label for="import-input"></label><input type="text" id="import-input" style="margin-left: 0">
+                <button id="btn6">从url导入</button>
+
+            </div>
+            <div class="btn-con">
+                <button id="btn7">清空预览</button>
+                <button id="btn8">导出</button>
+            </div>
+        </div>
+        <div>
+            <div class="option">
+                <label for="multi-select">自由添加</label>
+                <input type="checkbox" id="multi-select"><br>
+            </div>
+
+            <div class="option">
+                <label for="row">行数</label><input type="number" id="row" value="1"><br>
+            </div>
+
+            <div class="option">
+                <label for="col">列数</label><input type="number" id="col" value="4"><br>
+            </div>
+            <div class="option">
+                <label for="width">宽度（px）</label><input type="number" id="width" value="224"><br>
+            </div>
+            <div class="option">
+                <label for="height">高度（px）</label><input type="number" id="height" value="84"><br>
+            </div>
+            <div class="option">
+                <label for="lock">锁定比例</label> <input type="checkbox" id="lock" checked><br>
+            </div>
+
+
+            <div class="option">
+                <label for="overflow">每个边缘重叠（百分比）</label><input type="number" id="overflow" value="0"><br>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<style>
+    #canvas {
+        height: 80vh;
+        width: 75vw;
+    }
+
+    .container {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-around;
+        height: 100%;
+    }
+
+    .cropper-viewers {
+        margin-top: 0.5rem;
+        height: 80vh;
+        width: 22vw;
+        overflow-y: auto;
+    }
+
+    .cropper-viewers > cropper-viewer {
+        width: 5vw;
+        border: 1px solid;
+        display: inline-block;
+        margin-right: 0.25rem;
+    }
+
+    .option {
+        margin-bottom: 10px;
+    }
+
+    input {
+        margin-left: 15px;
+    }
+
+</style>
+
+</body>
+<script src="https://unpkg.2333332.xyz/cropperjs@2.0.0-beta.4"></script>
+<script type="module">
+    const cropperSelectionNode = document.getElementById("cropperSelection")
+    let selection_index = 1
+
+    function createAndDownloadFile(fileName, href) {
+        const aTag = document.createElement('a');
+        aTag.download = fileName;
+        aTag.href = href
+        aTag.click();
+    }
+
+    function import_img(url) {
+
+        const node = document.getElementById("img")
+        if (node.getAttribute("src").startsWith("blob:")) {
+            URL.revokeObjectURL(node.getAttribute("src"));
+        }
+        node.setAttribute("src", url)
+        console.log(url)
+    }
+
+    document.getElementById("btn8").addEventListener('click', async () => {
+        const canvas = document.createElement('canvas')
+        const context = canvas.getContext('2d')
+        const overflow = parseFloat(document.getElementById("overflow").value)
+
+        const img_canvas = await document.getElementById("canvas").$toCanvas()
+        const img_canvas_context = img_canvas.getContext('2d')
+
+        let k = 1
+
+        if (document.getElementById("multi-select").checked) {
+            for (const selector of document.getElementsByTagName("cropper-selection")) {
+                const x = selector.x
+                const y = selector.y
+                const height = selector.height
+                const width = selector.width
+                const offset_y = overflow / 100 * height
+                const offset_x = overflow / 100 * width
+
+                const data = img_canvas_context.getImageData(x - offset_x, y - offset_y, width + 2 * offset_x, height + 2 * offset_y)
+                canvas.width = width + 2 * offset_x
+                canvas.height = height + 2 * offset_y
+                context.putImageData(data, 0, 0)
+                const href = canvas.toDataURL('image/jpeg', 1.0)
+                createAndDownloadFile(`${k++}.jpeg`, href)
+            }
+        } else {
+
+            const c = parseInt(document.getElementById("col").value)
+            const r = parseInt(document.getElementById("row").value)
+
+            const selector = document.getElementById("cropperSelection")
+            const x = selector.x
+            const y = selector.y
+            const height = selector.height
+            const width = selector.width
+            const height_each = height / r
+            const width_each = width / c
+            const offset_y = overflow / 100 * height_each
+            const offset_x = overflow / 100 * width_each
+
+            for (let i = 0; i < r; i++) {
+                for (let j = 0; j < c; j++) {
+                    const _x = x + j * width_each
+                    const _y = y + i * height_each
+                    const data = img_canvas_context.getImageData(_x - offset_x, _y - offset_y, width_each + 2 * offset_x, height_each + 2 * offset_y)
+                    canvas.width = width_each + 2 * offset_x
+                    canvas.height = height_each + 2 * offset_y
+                    context.putImageData(data, 0, 0)
+                    const href = canvas.toDataURL('image/jpeg', 1.0)
+                    createAndDownloadFile(`${k++}.jpeg`, href)
+                }
+            }
+        }
+    })
+
+    function review_all() {
+        const referenceNode = document.getElementsByClassName("single-demo")[0]
+
+        if (document.getElementById("multi-select").checked) {
+
+            const selector = document.querySelector("cropper-selection[active]")
+            const height = selector.height
+            const width = selector.width
+            // document.getElementById("width").value = Math.round(width)
+            // document.getElementById("height").value = Math.round(height)
+
+            Array.from(document.getElementsByTagName("cropper-viewer")).map(node => {
+                if (node.getAttribute("selection") === "#cropperSelection") {
+                    node.setAttribute('style', 'display: inline-block');
+                    setTimeout(() => node.$render(), 0)
+                } else {
+                    document.getElementsByClassName("cropper-viewers")[0].removeChild(node)
+                }
+            })
+
+            for (let selection of document.getElementsByTagName("cropper-selection")) {
+                if (selection.getAttribute("id") === "cropperSelection") continue
+                const _id = `cropperSelection${selection_index++}`
+                selection.setAttribute("id", _id)
+
+                let viewer = document.createElement("cropper-viewer")
+                viewer.setAttribute("selection", `#${_id}`)
+
+                document.getElementsByClassName("cropper-viewers")[0].insertBefore(viewer, referenceNode)
+                setTimeout(() => viewer.$render(), 0)
+
+
+            }
+        } else {
+            const c = parseInt(document.getElementById("col").value)
+            const r = parseInt(document.getElementById("row").value)
+
+            const selector = document.getElementById("cropperSelection")
+            const x = selector.x
+            const y = selector.y
+            const height = selector.height
+            const width = selector.width
+            const height_each = height / r
+            const width_each = width / c
+
+            document.getElementById("width").value = Math.round(width)
+            document.getElementById("height").value = Math.round(height)
+
+            Array.from(document.getElementsByTagName("cropper-viewer")).map(node => {
+                if (node.getAttribute("selection") === "#cropperSelection") {
+                    node.setAttribute('style', 'display: none');
+                } else {
+                    document.getElementsByClassName("cropper-viewers")[0].removeChild(node)
+                }
+            })
+
+            for (let i = 0; i < r; i++) {
+                for (let j = 0; j < c; j++) {
+                    const _new_selector = document.createElement("cropper-selection")
+                    _new_selector.setAttribute("x", x + j * width_each)
+                    _new_selector.setAttribute("y", y + i * height_each)
+                    _new_selector.setAttribute("width", String(width_each))
+                    _new_selector.setAttribute("height", String(height_each))
+
+                    const _id = `cropperSelection${selection_index++}`
+                    _new_selector.setAttribute("id", _id)
+
+                    document.getElementById("canvas").appendChild(_new_selector)
+
+                    let viewer = document.createElement("cropper-viewer")
+                    viewer.setAttribute("selection", `#${_id}`)
+
+                    document.getElementsByClassName("cropper-viewers")[0].insertBefore(viewer, referenceNode)
+
+                    setTimeout(() => viewer.$render(), 0)
+
+                }
+            }
+        }
+
+    }
+
+    function set_selection() {
+        let c = document.getElementById("col").value
+        let r = document.getElementById("row").value
+        let width = document.getElementById("width").value
+        let height = document.getElementById("height").value
+
+        let invalid = false;
+
+        [c, r, width, height].map(i => {
+            if (i === "0" || i === "") invalid = true
+        })
+        if (invalid) return
+
+        width = parseInt(width)
+        height = parseInt(height)
+
+        const multiple = document.getElementById("multi-select").checked
+        const locked = document.getElementById("lock").checked
+
+        if (multiple) {
+            if (locked) {
+                for (let selection of document.getElementsByTagName("cropper-selection")) {
+                    selection.setAttribute("aspect-ratio", String(width / height))
+                }
+            } else {
+                for (let selection of document.getElementsByTagName("cropper-selection")) {
+                    selection.removeAttribute("aspect-ratio")
+                }
+            }
+        } else {
+            if (locked) {
+                cropperSelectionNode.$change(0, 0, width, height)
+                cropperSelectionNode.$center()
+                cropperSelectionNode.aspectRatio = width / height
+            } else {
+                cropperSelectionNode.$change(0, 0, width, height)
+                cropperSelectionNode.$center()
+                cropperSelectionNode.aspectRatio = NaN
+            }
+        }
+        review_all()
+
+    }
+
+    await document.getElementById("img").$ready((image) => {
+        document.getElementById("img").$center('contain')
+        set_selection()
+    })
+
+
+    document.getElementById("multi-select").addEventListener('click', function () {
+            if (this.checked) {
+                document.getElementById("cropperSelection").setAttribute("multiple", "")
+                document.getElementById("col").setAttribute("disabled", "")
+                document.getElementById("row").setAttribute("disabled", "")
+            } else {
+                document.getElementById("cropperSelection").removeAttribute("multiple")
+                document.getElementById("col").removeAttribute("disabled")
+                document.getElementById("row").removeAttribute("disabled")
+            }
+            set_selection()
+        }
+    )
+    document.getElementById("row").addEventListener('input', set_selection)
+    document.getElementById("col").addEventListener('input', set_selection)
+    document.getElementById("width").addEventListener('input', set_selection)
+    document.getElementById("height").addEventListener('input', set_selection)
+    document.getElementById("lock").addEventListener('click', set_selection)
+
+    document.getElementById("btn3").addEventListener('click', function () {
+        document.getElementById('upload').click();
+    })
+
+    document.getElementById("btn6").addEventListener("click", () => {
+        const url = document.getElementById("import-input").value
+        import_img(url)
+    })
+
+    document.getElementById("btn7").addEventListener("click", () => {
+        Array.from(document.getElementsByTagName("cropper-viewer")).map(node => {
+            if (node.getAttribute("selection") !== "#cropperSelection") {
+                document.getElementsByClassName("cropper-viewers")[0].removeChild(node)
+            }
+        })
+        Array.from(document.getElementsByTagName("cropper-selection")).map(node => {
+            if (node.getAttribute("id") !== "cropperSelection") {
+                document.getElementById("canvas").removeChild(node)
+            }
+        })
+
+    })
+
+
+    document.getElementById('upload').addEventListener('change', function () {
+            if (this.files.length === 0) {
+                return
+            }
+            const url = URL.createObjectURL(this.files[0])
+            import_img(url)
+        }
+    )
+
+
+    document.getElementById("canvas").addEventListener("actionend", function (event) {
+        // setTimeout(review_all, 100)
+        review_all()
+        console.log(event)
+
+    })
+
+
+</script>
+
+
+</html>

@@ -62,7 +62,7 @@ def gen_imgs(cnt: int, text: str, group_n: int):
             y = 100
     else:
         assert len(text) == 1
-        font_size = 360
+        font_size = 348
         font = ImageFont.truetype(os.path.join(current_path, CN_TTF_FILE), font_size)
 
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -101,6 +101,8 @@ for root, ds, fs in os.walk(pic_path):
         print(root, f)
         base_dir_name = os.path.basename(root)
         group_num, suffix = os.path.splitext(f)
+        if not group_num.isdigit():
+            continue
         group_num = int(group_num)
         src = os.path.join(root, f)
         group_cnt[group_num - 1] += 1

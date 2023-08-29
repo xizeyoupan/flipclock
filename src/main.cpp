@@ -7,21 +7,11 @@
 #include "Controller.h"
 #include "DeviceService.h"
 
-DynamicJsonDocument doc(16 * 1024);
-
-Stepper stepper = Stepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
-AsyncWebServer server(80);
 
-AsyncWebServerRequest *global_request = nullptr;
-std::string url_handle;
-std::string post_data;
-bool post_data_end;
-std::map<int, int> addr_map;
-std::map<int, int> zero_pos;
-std::vector<std::vector<std::string>> contents;
-std::map<int, int> flip_pos;
+extern Stepper stepper;
 
+extern std::map<int, int> addr_map;
 
 void setup() {
     Wire.begin();
@@ -65,20 +55,19 @@ void setup() {
     Serial.println(WiFi.localIP());
     Serial.println("WiFi status:");
     WiFi.printDiag(Serial);
-
     if (!MDNS.begin("flip")) {
         Serial.println("Error setting up MDNS responder!");
     }
 
     addr_map = scan_devices();
 
-    init_server(server);
+    init_server();
 
 }
 
 void loop() {
 
-    handle_url(doc);
+    handle_url();
 //    Serial.println(ESP.getFreeHeap());
     delay(1);
 

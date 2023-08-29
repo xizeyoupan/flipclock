@@ -5,23 +5,32 @@
 #include "DeviceService.h"
 
 extern std::map<int, int> addr_map;
+extern std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
+extern std::vector<std::vector<std::string>> contents;
 extern std::map<int, int> flip_pos;
-extern Stepper stepper;
+extern std::map<int, double> flip_degree;
+ std::map<int, int> switch_status;
+
+Stepper stepper = Stepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
+
 
 double step_remainder = 0;
 
 std::map<int, int> scan_devices() {
     std::map<int, int> _addr;
     int _index = 0;
-    _addr.insert({0, _index++});
     for (uint8_t i = 1; i < 128; i++) {
         Wire.beginTransmission(i);
         int code = Wire.endTransmission();
         delay(2);
         if (code == 0) {
             _addr.insert({i, _index++});
+            switch_status[i] = 0;
         }
     }
+    _addr.insert({MASTER_ADDR, _index++});
+    switch_status[MASTER_ADDR] = 0;
+
     Serial.print("Found ");
     Serial.print(_addr.size());
     Serial.println(" devices.");
@@ -35,24 +44,54 @@ std::map<int, int> scan_devices() {
     return _addr;
 }
 
-void move_degree(int degree) {
+int move_offset(int addr) {
+    double _offset = zero_pos[addr].second;
+
+    for (const auto &item: addr_map) {
+        if (item.first != addr)set_switch(item.first, LOW);
+        else set_switch(addr, HIGH);
+    }
+
+    move_degree(_offset);
+
+    return 0;
+}
+
+double move_degree(double degree) {
+
+    if (abs(degree) < 1e-2)return 0;
+
     if (degree < 0)degree = -degree;
     double steps = 1.0 * degree * stepsPerRevolution / 360.0;
 
     int num = floor(steps);
+
+    double _real_degree = 1.0 * num * 360.0 / stepsPerRevolution;
+
+    for (const auto &item: switch_status) {
+        if (item.second == 1) {
+            flip_degree[item.first] += _real_degree;
+            flip_degree[item.first] = fmod(flip_degree[item.first], 360.0);
+        }
+    }
+
     step_remainder += steps - num;
     if (step_remainder > 1) {
         step_remainder--;
         num++;
     }
     stepper.step(-num);
+
+    return _real_degree;
 }
 
 int set_switch(int addr, int state) {
     if (addr_map.find(addr) == addr_map.end())
         return -1;
 
-    if (addr == 0) {
+    switch_status[addr] = state;
+
+    if (addr == MASTER_ADDR) {
         digitalWrite(CTRL, state);
         return 0;
     }
@@ -68,16 +107,18 @@ int not_on_mag(int addr) {
     if (addr_map.find(addr) == addr_map.end())
         return -1;
 
-    if (addr == 0) {
-        return digitalRead(MAG_PIN);
+    int pos = -1;
+
+    if (addr == MASTER_ADDR) {
+        pos = digitalRead(MAG_PIN);
     } else {
         Wire.requestFrom(addr, 1);
-        int pos = -1;
         while (Wire.available()) {
             pos = Wire.read();
         }
-        return pos;
     }
+
+    return pos;
 }
 
 
@@ -87,8 +128,9 @@ int reset_pos(int addr) {
 
     for (const auto &item: addr_map) {
         if (item.first != addr)set_switch(item.first, LOW);
+        else set_switch(addr, HIGH);
     }
-    set_switch(addr, HIGH);
+
 
     while (!not_on_mag(addr)) {
         move_degree(1);
@@ -96,6 +138,22 @@ int reset_pos(int addr) {
     while (not_on_mag(addr)) {
         move_degree(1);
     }
+
+    release_motor();
+
+    flip_degree[addr] = 0;
+    return 0;
+}
+
+int release_motor() {
+    for (const auto &item: addr_map) {
+        set_switch(item.first, LOW);
+    }
+
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, LOW);
 
     return 0;
 }

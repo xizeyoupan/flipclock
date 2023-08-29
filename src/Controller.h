@@ -9,10 +9,8 @@
 #include "map"
 #include "ArduinoJson.h"
 
-void init_server(AsyncWebServer &s);
+void init_server();
 
-void handle_url(
-        DynamicJsonDocument &doc
-);
+void handle_url();
 
 #endif //FLIPCLOCK_CONTROLLER_H

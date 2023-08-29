@@ -29,6 +29,8 @@
 #define HIGH_RPM        15
 #define LOW_RPM         10
 
+#define MASTER_ADDR     114
+
 const int stepsPerRevolution = 2038;
 
 #endif //FLIPCLOCK_CONFIG_H

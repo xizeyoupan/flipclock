@@ -7,30 +7,41 @@
 #include "DeviceService.h"
 #include "map"
 
-extern Stepper stepper;
-extern AsyncWebServerRequest *global_request;
-extern std::string url_handle;
-extern std::string post_data;
-extern bool post_data_end;
-extern std::map<int, int> addr_map;
-extern std::map<int, int> zero_pos;
-extern std::vector<std::vector<std::string>> contents;
+DynamicJsonDocument doc(16 * 1024);
+AsyncWebServer server(80);
 
-void init_server(AsyncWebServer &s) {
+AsyncWebServerRequest *global_request;
+std::string url_handle;
+std::string post_data;
+bool post_data_end;
+
+std::map<int, int> addr_map;
+std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
+std::vector<std::vector<std::string>> contents;
+std::map<int, int> flip_pos;
+std::map<int, double> flip_degree;
+std::map<std::string, std::vector<int>> phrase;
+
+
+void init_server() {
 
     std::map<std::string, std::string> routes;
     routes.insert({"/", ""});
+//    routes.insert({"/favicon.ico", ""});
     routes.insert({"/ctrl", ""});
     routes.insert({"/move", ""});
     routes.insert({"/scan", ""});
     routes.insert({"/upload_config", "json"});
     routes.insert({"/read_config", ""});
+    routes.insert({"/save_config", ""});
     routes.insert({"/adjust", ""});
+    routes.insert({"/set_zero_pos", ""});
+    routes.insert({"/set_phrase", ""});
 
 
     for (const auto &item: routes) {
         if (item.second == "") {
-            s.on(
+            server.on(
                     item.first.c_str(),
                     HTTP_GET,
                     [=](AsyncWebServerRequest *request) {
@@ -41,7 +52,7 @@ void init_server(AsyncWebServer &s) {
 
         } else if (item.second == "json") {
 
-            s.on(
+            server.on(
                     item.first.c_str(),
                     HTTP_POST,
                     [](AsyncWebServerRequest *request) {},
@@ -68,12 +79,10 @@ void init_server(AsyncWebServer &s) {
 
     }
 
-    s.begin();
+    server.begin();
 }
 
-void handle_url(
-        DynamicJsonDocument &doc
-) {
+void handle_url() {
 
     doc.garbageCollect();
 
@@ -102,18 +111,28 @@ void handle_url(
         doc["data"] = "";
 
     } else if (url_handle == "/move") {
-        AsyncWebParameter *p = global_request->getParam("value");
-        int steps = p->value().toInt();
+        AsyncWebParameter *d = global_request->getParam("degree");
+        AsyncWebParameter *a = global_request->getParam("addr");
 
-//        move_test(stepper, steps);
-        doc["state"] = "not imp";
+        double degrees = d->value().toDouble();
+        int addr = a->value().toInt();
+
+        set_switch(addr, HIGH);
+
+        doc["state"] = "success";
         doc["data"] = "";
+
+        move_degree(degrees);
+        release_motor();
+
+        zero_pos[addr].second = flip_degree[addr];
 
 
     } else if (url_handle == "/scan") {
 
         addr_map = scan_devices();
         doc["state"] = "success";
+
         JsonArray data = doc.createNestedArray("data");
         for (const auto &item: addr_map) {
             JsonObject each = data.createNestedObject();
@@ -142,6 +161,16 @@ void handle_url(
         doc["state"] = "success";
         doc["data"] = output;
 
+    } else if (url_handle == "/save_config") {
+
+        if (addr_map.empty())addr_map = scan_devices();
+
+        std::string config = format_config();
+        write_config("/config", config.c_str());
+
+        doc["state"] = "success";
+        doc["data"] = config;
+
     } else if (url_handle == "/read_config") {
         std::string original_data;
 
@@ -160,7 +189,63 @@ void handle_url(
         global_request->send(res);
         url_handle = "";
         reset_pos(addr);
+
         return;
+    } else if (url_handle == "/set_phrase") {
+        AsyncWebParameter *a = global_request->getParam("action");
+        AsyncWebParameter *p = global_request->getParam("phrase");
+        String action = a->value();
+        String _phrase = p->value();
+        String seq;
+        if (action.equals("add")) {
+            AsyncWebParameter *s = global_request->getParam("seq");
+            seq = s->value();
+            std::string _temp;
+            std::vector<std::string> strseq;
+            for (const auto &item: seq) {
+                if (item != ',')_temp += item;
+                else {
+                    if (!_temp.empty()) {
+                        strseq.push_back(_temp);
+                        _temp = "";
+                    }
+                }
+            }
+            if (!_temp.empty()) {
+                strseq.push_back(_temp);
+                _temp = "";
+            }
+
+            std::vector<int> index_seq;
+            for (const auto &item: strseq) {
+                index_seq.push_back(std::stoi(item));
+            }
+            phrase[_phrase.c_str()] = index_seq;
+
+        } else if (action.equals("remove")) {
+            phrase.erase(_phrase.c_str());
+        }
+
+        std::string config = format_config();
+        write_config("/config", config.c_str());
+
+        doc["state"] = "success";
+        doc["data"] = "";
+
+    } else if (url_handle == "/set_zero_pos") {
+        AsyncWebParameter *a = global_request->getParam("addr");
+        AsyncWebParameter *i = global_request->getParam("index");
+        int addr = a->value().toInt();
+        int index = i->value().toInt();
+
+        zero_pos[addr].first = index;
+
+        std::string output = format_config();
+        write_config("/config", output.c_str());
+
+        doc["state"] = "success";
+        doc["data"] = "";
+
     }
 
 

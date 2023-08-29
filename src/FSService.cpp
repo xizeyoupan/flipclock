@@ -9,10 +9,12 @@
 #include "DeviceService.h"
 
 extern std::map<int, int> addr_map;
-extern std::map<int, int> zero_pos;
+extern std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
 extern std::vector<std::vector<std::string>> contents;
 
+
 std::string format_config() {
+    // format and read config from mem
 
     std::string output("contents\n");
 
@@ -40,7 +42,9 @@ std::string format_config() {
     for (const auto &item: zero_pos) {
         output.append(std::to_string(item.first));
         output.append(" ");
-        output.append(std::to_string(item.second));
+        output.append(std::to_string(item.second.first));
+        output.append(" ");
+        output.append(std::to_string(item.second.second));
         output.append("\n");
     }
 
@@ -49,6 +53,7 @@ std::string format_config() {
 }
 
 void read_config(const char *config_path, std::string &original_data) {
+    // parse and load config from file
 
     auto config_file = SPIFFS.open(config_path);
 
@@ -106,9 +111,10 @@ void read_config(const char *config_path, std::string &original_data) {
             int num;
             iss >> num;
             while (num--) {
-                int addr, pos;
-                iss >> addr >> pos;
-                zero_pos[addr] = pos;
+                int addr, index;
+                double offset;
+                iss >> addr >> index >> offset;
+                zero_pos[addr] = std::make_pair(index, offset);
             }
         }
     }

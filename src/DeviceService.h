@@ -10,12 +10,16 @@
 
 std::map<int, int> scan_devices();
 
-void move_degree(int degree);
+double move_degree(double degree);
 
 int set_switch(int addr, int state);
 
 int reset_pos(int addr);
 
 int not_on_mag(int addr);
+
+int release_motor();
+
+int move_offset(int addr);
 
 #endif //FLIPCLOCK_DEVICESERVICE_H

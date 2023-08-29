@@ -11,7 +11,7 @@
 extern std::map<int, int> addr_map;
 extern std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
 extern std::vector<std::vector<std::string>> contents;
-
+extern std::map<std::string, std::map<int, int>> phrase;
 
 std::string format_config() {
     // format and read config from mem
@@ -48,6 +48,24 @@ std::string format_config() {
         output.append("\n");
     }
 
+    output.append("phrase\n");
+    output.append(std::to_string(phrase.size()));
+    output.append("\n");
+    for (const auto &item: phrase) {
+        output.append(item.first);
+        output.append(" ");
+        output.append(std::to_string(item.second.size()));
+        output.append("\n");
+
+        for (const auto &p: item.second) {
+            output.append(std::to_string(p.first));
+            output.push_back(' ');
+            output.append(std::to_string(p.second));
+            output.push_back('\n');
+        }
+
+    }
+
     output.append("-1\n");
     return output;
 }
@@ -72,10 +90,10 @@ void read_config(const char *config_path, std::string &original_data) {
     original_data = s;
 
     std::istringstream iss(s);
-    std::istringstream oss;
     std::string op;
-    while (true) {
+    while (!iss.eof()) {
         iss >> op;
+
         if (op == "-1")break;
 
         if (op == "contents") {
@@ -95,9 +113,7 @@ void read_config(const char *config_path, std::string &original_data) {
         }
 
         if (op == "addr_map") {
-            if (addr_map.empty()) {
-                addr_map = scan_devices();
-            }
+
             int num;
             iss >> num;
             while (num--) {
@@ -115,6 +131,23 @@ void read_config(const char *config_path, std::string &original_data) {
                 double offset;
                 iss >> addr >> index >> offset;
                 zero_pos[addr] = std::make_pair(index, offset);
+            }
+        }
+
+        if (op == "phrase") {
+            int num;
+            iss >> num;
+            while (num--) {
+                int i, size, addr;
+                std::string _phrase;
+                std::map<int, int> index;
+                iss >> _phrase >> size;
+                for (int j = 0; j < size; ++j) {
+                    iss >> addr >> i;
+                    index[addr] = i;
+                }
+
+                phrase[_phrase] = index;
             }
         }
     }

@@ -1,15 +1,16 @@
 
 #include "config.h"
-#include "ArduinoJson.h"
 #include "init.h"
 #include "map"
 #include "sstream"
 #include "Controller.h"
 #include "DeviceService.h"
+#include "FSService.h"
 
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 extern Stepper stepper;
+extern NTPClient timeClient;
 
 extern std::map<int, int> addr_map;
 
@@ -46,7 +47,6 @@ void setup() {
     Serial.print("Connecting to ");
     Serial.println(ssid.c_str());
 
-
     while (WiFiClass::status() != WL_CONNECTED) {
         delay(500);
         Serial.print(".");
@@ -55,11 +55,20 @@ void setup() {
     Serial.println(WiFi.localIP());
     Serial.println("WiFi status:");
     WiFi.printDiag(Serial);
+
+
     if (!MDNS.begin("flip")) {
         Serial.println("Error setting up MDNS responder!");
     }
 
-    addr_map = scan_devices();
+    timeClient.begin();
+
+    scan_device_and_content_provider();
+    std::string config;
+    read_config(CONFIG_PATH, config);
+    Serial.println(config.c_str());
+
+    move_to_zero_pos_all();
 
     init_server();
 

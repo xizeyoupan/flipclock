@@ -12,6 +12,9 @@
 #include "SPIFFS.h"
 #include "Stepper.h"
 #include "Adafruit_NeoPixel.h"
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <map>
 
 #define LED_PIN         4
 #define NUMPIXELS       1
@@ -31,6 +34,10 @@
 
 #define MASTER_ADDR     114
 
+#define CONFIG_PATH     "/config"
+
+
 const int stepsPerRevolution = 2038;
+const double degreePerFlip = 360.0 / 40.0;
 
 #endif //FLIPCLOCK_CONFIG_H

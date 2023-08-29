@@ -5,7 +5,7 @@
 #include "Controller.h"
 #include "FSService.h"
 #include "DeviceService.h"
-#include "map"
+#include "ContentProvider.h"
 
 DynamicJsonDocument doc(16 * 1024);
 AsyncWebServer server(80);
@@ -18,9 +18,11 @@ bool post_data_end;
 std::map<int, int> addr_map;
 std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
 std::vector<std::vector<std::string>> contents;
-std::map<int, int> flip_pos;
+
 std::map<int, double> flip_degree;
-std::map<std::string, std::vector<int>> phrase;
+std::map<std::string, std::map<int, int>> phrase; // phrase, addr, content index
+
+extern std::map<std::string, std::vector<std::string>(*)()> providers;
 
 
 void init_server() {
@@ -36,11 +38,13 @@ void init_server() {
     routes.insert({"/save_config", ""});
     routes.insert({"/adjust", ""});
     routes.insert({"/set_zero_pos", ""});
-    routes.insert({"/set_phrase", ""});
+    routes.insert({"/set_phrase", "json"});
+    routes.insert({"/test", ""});
+    routes.insert({"/reboot", ""});
 
 
     for (const auto &item: routes) {
-        if (item.second == "") {
+        if (item.second.empty()) {
             server.on(
                     item.first.c_str(),
                     HTTP_GET,
@@ -130,7 +134,6 @@ void handle_url() {
 
     } else if (url_handle == "/scan") {
 
-        addr_map = scan_devices();
         doc["state"] = "success";
 
         JsonArray data = doc.createNestedArray("data");
@@ -151,11 +154,11 @@ void handle_url() {
             Serial.println(err.c_str());
         }
         const char *data = doc["data"];
-        write_config("/config", data);
+        write_config(CONFIG_PATH, data);
 
         std::string original_data;
-        if (addr_map.empty())addr_map = scan_devices();
-        read_config("/config", original_data);
+
+        read_config(CONFIG_PATH, original_data);
         auto output = format_config();
 
         doc["state"] = "success";
@@ -163,10 +166,9 @@ void handle_url() {
 
     } else if (url_handle == "/save_config") {
 
-        if (addr_map.empty())addr_map = scan_devices();
 
         std::string config = format_config();
-        write_config("/config", config.c_str());
+        write_config(CONFIG_PATH, config.c_str());
 
         doc["state"] = "success";
         doc["data"] = config;
@@ -174,8 +176,7 @@ void handle_url() {
     } else if (url_handle == "/read_config") {
         std::string original_data;
 
-        if (addr_map.empty())addr_map = scan_devices();
-        read_config("/config", original_data);
+        read_config(CONFIG_PATH, original_data);
         doc["data"] = format_config();
         doc["state"] = "success";
 
@@ -192,42 +193,34 @@ void handle_url() {
 
         return;
     } else if (url_handle == "/set_phrase") {
-        AsyncWebParameter *a = global_request->getParam("action");
-        AsyncWebParameter *p = global_request->getParam("phrase");
-        String action = a->value();
-        String _phrase = p->value();
-        String seq;
-        if (action.equals("add")) {
-            AsyncWebParameter *s = global_request->getParam("seq");
-            seq = s->value();
-            std::string _temp;
-            std::vector<std::string> strseq;
-            for (const auto &item: seq) {
-                if (item != ',')_temp += item;
-                else {
-                    if (!_temp.empty()) {
-                        strseq.push_back(_temp);
-                        _temp = "";
-                    }
-                }
-            }
-            if (!_temp.empty()) {
-                strseq.push_back(_temp);
-                _temp = "";
+        while (!post_data_end)delay(1);
+
+        auto err = deserializeJson(doc, post_data.c_str());
+        if (err) {
+            Serial.print("deserializeJson() failed with code ");
+            Serial.println(err.c_str());
+        }
+
+
+        JsonObject data = doc["data"];
+
+        const char *data_action = data["action"];
+        const char *data_phrase = data["phrase"];
+
+
+        if (strcmp(data_action, "add") == 0) {
+            for (JsonObject item: data["seq"].as<JsonArray>()) {
+                int addr = item["addr"];
+                int index = item["index"];
+                phrase[data_phrase][addr] = index;
             }
 
-            std::vector<int> index_seq;
-            for (const auto &item: strseq) {
-                index_seq.push_back(std::stoi(item));
-            }
-            phrase[_phrase.c_str()] = index_seq;
-
-        } else if (action.equals("remove")) {
-            phrase.erase(_phrase.c_str());
+        } else if (strcmp(data_action, "remove") == 0) {
+            phrase.erase(data_phrase);
         }
 
         std::string config = format_config();
-        write_config("/config", config.c_str());
+        write_config(CONFIG_PATH, config.c_str());
 
         doc["state"] = "success";
         doc["data"] = "";
@@ -241,11 +234,24 @@ void handle_url() {
         zero_pos[addr].first = index;
 
         std::string output = format_config();
-        write_config("/config", output.c_str());
+        write_config(CONFIG_PATH, output.c_str());
 
         doc["state"] = "success";
         doc["data"] = "";
 
+    } else if (url_handle == "/test") {
+
+        auto s = providers["显示时间"]();
+        auto i = getIndex(s);
+
+        for (const auto &item: i) {
+            Serial.println(item);
+        }
+        doc["state"] = "success";
+        doc["data"] = "";
+
+    } else if (url_handle == "/reboot") {
+        ESP.restart();
     }
 
 

@@ -7,42 +7,97 @@
 extern std::map<int, int> addr_map;
 extern std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
 extern std::vector<std::vector<std::string>> contents;
-extern std::map<int, int> flip_pos;
+
 extern std::map<int, double> flip_degree;
- std::map<int, int> switch_status;
+std::map<int, int> switch_status;
+extern std::map<std::string, std::vector<std::string>(*)()> providers;
+extern std::map<std::string, std::map<int, int>> phrase;
 
 Stepper stepper = Stepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
 
-
 double step_remainder = 0;
 
-std::map<int, int> scan_devices() {
-    std::map<int, int> _addr;
+std::map<int, int> scan_device_and_content_provider() {
+
     int _index = 0;
     for (uint8_t i = 1; i < 128; i++) {
         Wire.beginTransmission(i);
         int code = Wire.endTransmission();
         delay(2);
         if (code == 0) {
-            _addr.insert({i, _index++});
+            addr_map.insert({i, _index++});
             switch_status[i] = 0;
         }
     }
-    _addr.insert({MASTER_ADDR, _index++});
+    addr_map.insert({MASTER_ADDR, _index++});
     switch_status[MASTER_ADDR] = 0;
 
     Serial.print("Found ");
-    Serial.print(_addr.size());
+    Serial.print(addr_map.size());
     Serial.println(" devices.");
 
-    for (const auto &item: _addr) {
+    for (const auto &item: addr_map) {
         Serial.print("Addr: ");
         Serial.print(item.first);
         Serial.print(", index: ");
         Serial.println(item.second);
     }
-    return _addr;
+
+    for (const auto &item: providers) {
+        phrase[item.first] = {};
+    }
+
+    return addr_map;
 }
+
+int move_to_zero_pos_all() {
+
+    for (auto &item: switch_status) {
+        if (not_on_mag(item.first))item.second = 0;
+        else item.second = 1;
+    }
+    set_switch();
+
+    while (!std::all_of(switch_status.begin(), switch_status.end(), [](std::pair<int, int> p) {
+        return p.second == 0;
+    })) {
+        move_degree(1.0);
+        for (auto &item: switch_status) {
+            if (not_on_mag(item.first)) {
+                item.second = 0;
+                set_switch(item.first, 0);
+            }
+        }
+    }
+
+    for (auto &item: switch_status) {
+        if (not_on_mag(item.first))item.second = 1;
+        else item.second = 0;
+    }
+    set_switch();
+
+    while (!std::all_of(switch_status.begin(), switch_status.end(), [](std::pair<int, int> p) {
+        return p.second == 0;
+    })) {
+        move_degree(1.0);
+        for (auto &item: switch_status) {
+            if (!not_on_mag(item.first)) {
+                item.second = 0;
+                set_switch(item.first, 0);
+            }
+        }
+    }
+
+    for (const auto &item: zero_pos) {
+        move_offset(item.first);
+        flip_degree[item.first] = item.second.second;
+    }
+
+    release_motor();
+
+    return 0;
+}
+
 
 int move_offset(int addr) {
     double _offset = zero_pos[addr].second;
@@ -83,6 +138,19 @@ double move_degree(double degree) {
     stepper.step(-num);
 
     return _real_degree;
+}
+
+int set_switch() {
+    for (const auto &item: switch_status) {
+        if (item.first == MASTER_ADDR) {
+            digitalWrite(CTRL, item.second);
+        } else {
+            Wire.beginTransmission(item.first);
+            Wire.write(item.second);
+            int code = Wire.endTransmission();
+        }
+    }
+    return 0;
 }
 
 int set_switch(int addr, int state) {
@@ -155,5 +223,22 @@ int release_motor() {
     digitalWrite(IN3, LOW);
     digitalWrite(IN4, LOW);
 
+    return 0;
+}
+
+
+int get_current_index(int addr) {
+    int i = 0;
+    if (zero_pos[addr].second <= flip_degree[addr] and flip_degree[addr] <= 360.0) {
+        i = (flip_degree[addr] - zero_pos[addr].second) / degreePerFlip;
+    } else if (0 <= flip_degree[addr] and flip_degree[addr] <= zero_pos[addr].second) {
+        i = 39;
+    }
+
+    i = (i + zero_pos[addr].first) % 40;
+    return i;
+}
+
+int move_to_flip(std::vector<int> index) {
     return 0;
 }

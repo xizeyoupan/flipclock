@@ -27,9 +27,21 @@
             <button id="setZeroBtn">更新零点</button>
         </div>
 
+        <div>
+
+            <label for="phrase">输入当前短语：</label>
+            <input type="text" id="phrase">
+            <button id="addPhraseBtn">增加</button>
+
+        </div>
+
     </div>
 </div>
 <div class="clock" id="clock">
+
+</div>
+
+<div id="phrase-div">
 
 </div>
 <link rel="stylesheet" type="text/css" href="https://unpkg.2333332.xyz/toastify-js@1.12.0/src/toastify.css">
@@ -48,13 +60,46 @@
     const exportBtn = document.getElementById('exportBtn')
     const moveBtn = document.getElementById('moveBtn')
     const setZeroBtn = document.getElementById('setZeroBtn')
+    const addPhraseBtn = document.getElementById('addPhraseBtn')
+
+    addPhraseBtn.addEventListener('click', async () => {
+        const phrase = document.getElementById("phrase").value
+
+        let seq = []
+
+        flip_pos.map((v, i) => {
+            seq.push({addr: get_addr_by_index(i), index: parseInt(v)})
+        })
+
+        const data = {
+            data: {
+                action: "add",
+                phrase,
+                seq
+            }
+        }
+
+        let res = await fetch("/set_phrase", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(data)
+        })
+
+        res = await res.json()
+        Toastify({
+            text: res.state,
+            position: "center",
+        }).showToast();
+    })
 
     setZeroBtn.addEventListener('click', async () => {
         let res = await fetch(`/set_zero_pos?addr=${get_addr_by_index(chosen_index)}&index=${flip_pos[chosen_index]}`)
         res = await res.json()
         Toastify({
             text: res.state,
-            position: "left",
+            position: "center",
         }).showToast();
     })
 
@@ -63,7 +108,7 @@
         res = await res.json()
         Toastify({
             text: res.state,
-            position: "left",
+            position: "center",
         }).showToast();
 
     })
@@ -75,7 +120,7 @@
         res = await res.json()
         Toastify({
             text: res.state,
-            position: "left",
+            position: "center",
         }).showToast();
     })
 
@@ -103,7 +148,7 @@
 
                 Toastify({
                     text: res.state,
-                    position: "left",
+                    position: "center",
                 }).showToast();
             }
 
@@ -120,7 +165,7 @@
         res = await res.json()
         Toastify({
             text: res.state,
-            position: "left",
+            position: "center",
         }).showToast();
 
     })
@@ -172,7 +217,8 @@
         let i = 0
         while (true) {
             let line = result[i++]
-            if (line === "-1") break
+            if (!line || line === "-1") break
+
 
             if (line === "contents") {
                 let num = parseInt(result[i++])
@@ -205,6 +251,22 @@
                         zero_pos.set(parseInt(addr), parseInt(pos))
                     }
                 }
+            }
+
+            if (line === "phrase") {
+                let num = parseInt(result[i++])
+
+                while (num--) {
+                    const [_phrase, size] = result[i++].split(' ')
+
+                    const p = document.createElement("p")
+                    p.textContent = _phrase
+                    document.getElementById('phrase-div').appendChild(p)
+                    if (parseInt(size) !== 0)
+                        i++
+
+                }
+
             }
         }
 
@@ -484,7 +546,7 @@
 
     .clock {
         text-align: center;
-        margin-bottom: 200px;
+        margin-bottom: 20px;
     }
 
     .clock em {
@@ -493,6 +555,10 @@
         font-size: 66px;
         font-style: normal;
         vertical-align: top;
+    }
+
+    #phrase-div {
+        text-align: center;
     }
 </style>
 

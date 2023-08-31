@@ -24,6 +24,8 @@ std::map<std::string, std::map<int, int>> phrase; // phrase, addr, content index
 std::map<int, int> switch_status;
 
 std::vector<std::pair<std::string, int>> seq;
+extern int display_index;
+extern unsigned long start_time;
 
 extern std::map<std::string, std::map<int, int>(*)()> providers;
 
@@ -287,6 +289,8 @@ void handle_url() {
 
         seq.clear();
         int from = doc["data"]["from"];
+        display_index = from - 1;
+        start_time = 0;
 
         for (JsonObject data_item: doc["data"]["seq"].as<JsonArray>()) {
 

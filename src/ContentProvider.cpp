@@ -12,7 +12,7 @@ DHT dht(DHTPIN, DHTTYPE);
 
 extern std::vector<std::vector<std::string>> contents;
 extern std::map<int, int> addr_map;
-
+extern std::map<std::string, std::map<int, int>> phrase;
 
 std::map<std::string, std::map<int, int>(*)()> providers = {
         {"显示时间", displayTime},
@@ -26,11 +26,17 @@ void init_external_peripheral() {
 }
 
 std::map<int, int> displayRandom() {
-    srand(millis());
-    int dice = rand() % providers.size();
-    auto it = providers.cbegin();
-    while (dice--)it++;
-    return it->second();
+    auto it = phrase.cbegin();
+
+    while (true) {
+        srand(millis());
+        int dice = rand() % phrase.size();
+        it = phrase.cbegin();
+        while (dice--)it++;
+        if (providers.find(it->first) == providers.end())break;
+    }
+
+    return it->second;
 }
 
 std::map<int, int> displayTime() {

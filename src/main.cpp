@@ -82,6 +82,7 @@ void setup() {
 void loop() {
 
     handle_url();
+    display_seq();
 //    Serial.println(ESP.getFreeHeap());
     delay(1);
 

@@ -11,8 +11,12 @@ extern std::vector<std::vector<std::string>> contents;
 
 extern std::map<int, int> flip_pos;
 extern std::map<int, int> switch_status;
-extern std::map<std::string, std::vector<std::string>(*)()> providers;
+extern std::map<std::string, std::map<int, int>(*)()> providers;
 extern std::map<std::string, std::map<int, int>> phrase;
+extern std::vector<std::pair<std::string, int>> seq;
+int display_index = 0;
+unsigned long start_time = 0;
+
 std::map<int, int> passing_mag;
 
 Stepper stepper = Stepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
@@ -49,6 +53,21 @@ std::map<int, int> scan_device_and_content_provider() {
     }
 
     return addr_map;
+}
+
+void display_seq() {
+    if (seq.empty())return;
+    if (millis() - start_time > seq[display_index].second * 1000) {
+        display_index = (display_index + 1) % seq.size();
+        std::string &string = seq[display_index].first;
+        if (providers.find(string) != providers.end()) {
+            move_to_flip(providers[string]());
+        } else if (phrase.find(string) != phrase.end()) {
+            move_to_flip(phrase[string]);
+        }
+        start_time = millis();
+    }
+
 }
 
 int move_to_zero_pos_all() {
@@ -238,13 +257,14 @@ int move_to_flip(const std::map<int, int> &target) {
 //    }
 //    set_switch_from_status();
 
-
+    bool move_far = false;
     for (const auto &item: target) {
         current_index[item.first] = get_current_index(item.first);
         int move_flip_num = item.second - current_index[item.first];
         if (move_flip_num < 0)move_flip_num = 40 + move_flip_num;
         target_step[item.first] = (move_flip_num * stepPerFlip + flip_pos[item.first]) % stepsPerRevolution;
 
+        if (target_step[item.first] - flip_pos[item.first] >= stepsPerRevolution / 3)move_far = true;
 //        set_switch(item.first, 1);
 //        move_step(move_flip_num * stepPerFlip);
 //        set_switch(item.first, 0);
@@ -258,6 +278,11 @@ int move_to_flip(const std::map<int, int> &target) {
         Serial.println(target_step[item.first]);
 
     }
+
+//    if (move_far) {
+    move_to_zero_pos_all();
+    delay(100);
+//    }
 
 //    return 0;
 

@@ -26,8 +26,10 @@ int move_offset(int addr);
 
 int get_current_index(int addr);
 
-int move_to_flip(const std::map<int, int>& target);
+int move_to_flip(const std::map<int, int> &target);
 
 int move_to_zero_pos_all();
+
+void display_seq();
 
 #endif //FLIPCLOCK_DEVICESERVICE_H

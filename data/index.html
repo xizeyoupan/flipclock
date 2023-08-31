@@ -20,9 +20,10 @@
     <div class="btn-con">
 
         <div>
+            <button id="moveToZeroBtn">回到零点</button>
             <button id="adjustBtn">校准</button>
             <label for="degreeInput">转动角度：</label>
-            <input type="number" id="degreeInput" value="9" min="0.5" step="0.5">
+            <input type="number" id="degreeInput" value="16" min="0" step="1">
             <button id="moveBtn">转动</button>
             <button id="setZeroBtn">更新零点</button>
         </div>
@@ -37,15 +38,30 @@
 
     </div>
 </div>
-<div class="clock" id="clock">
+<div class="clock" id="clock"></div>
+
+<div id="container">
+    <div id="phrase-content">
+        <p>可用短语</p>
+    </div>
+
+    <div style="text-align: center">
+        <p>显示序列：短语 / 延时（秒）</p>
+        <div>
+            <label for="item"></label>
+            <input type="text" id="item" placeholder="输入短语">
+            <button id="addItemBtn">新增</button>
+            <button id="setSeqBtn">保存序列</button>
+        </div>
+        <div id="display-seq">
+        </div>
+    </div>
 
 </div>
 
-<div id="phrase-div">
-
-</div>
 <link rel="stylesheet" type="text/css" href="https://unpkg.2333332.xyz/toastify-js@1.12.0/src/toastify.css">
 <script type="text/javascript" src="https://unpkg.2333332.xyz/toastify-js"></script>
+<script src="https://unpkg.2333332.xyz/sortablejs@latest/Sortable.js"></script>
 <script>
     let chosen_index = 0 // chosen unit index, not addr
     let flip_pos = []
@@ -53,6 +69,8 @@
     let addr_map = new Map()
     let contents = []
     let flip_el = []
+    let phrase_str = []
+    let seq = []
 
     const saveBtn = document.getElementById('saveBtn')
     const adjustBtn = document.getElementById('adjustBtn')
@@ -61,6 +79,96 @@
     const moveBtn = document.getElementById('moveBtn')
     const setZeroBtn = document.getElementById('setZeroBtn')
     const addPhraseBtn = document.getElementById('addPhraseBtn')
+    const setSeqBtn = document.getElementById('setSeqBtn')
+    const addItemBtn = document.getElementById('addItemBtn')
+    const moveToZeroBtn = document.getElementById('moveToZeroBtn')
+
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        Sortable.create(document.getElementById('display-seq'), {animation: 150});
+        let res = await fetch("/read_config")
+        res = await res.json()
+        parseConfig(res.data)
+    })
+
+    moveToZeroBtn.addEventListener('click', async () => {
+        let res = await fetch("/move_to_zero")
+        res = await res.json()
+    })
+
+    function insertSeqItem(p, text, duration = "5") {
+        const div = document.createElement("div")
+        div.classList.add("item")
+        const _phrase = document.createElement("div")
+        _phrase.classList.add("phrase")
+        _phrase.textContent = text
+        const input = document.createElement("input")
+        input.setAttribute("type", "number")
+        input.setAttribute("value", duration)
+        const button = document.createElement("button")
+        button.textContent = "设为起点"
+        button.addEventListener('click', () => {
+            for (let el of document.getElementsByClassName("start")) {
+                el.classList.remove("start")
+            }
+            button.parentElement.classList.add("start")
+
+        })
+
+        const de = document.createElement("button")
+        de.textContent = "删除"
+        de.addEventListener('click', function () {
+            const p = this.parentElement;
+            const g = p.parentElement
+            g.removeChild(p)
+        })
+
+        div.appendChild(_phrase)
+        div.appendChild(input)
+        div.appendChild(button)
+        div.appendChild(de)
+
+        p.appendChild(div)
+    }
+
+    setSeqBtn.addEventListener('click', async () => {
+        const nodes = Array.from(document.getElementById("display-seq").children)
+        const seq = nodes.map(i => {
+            const phrase = i.getElementsByClassName('phrase')[0].textContent
+            const duration = parseInt(i.getElementsByTagName("input")[0].value)
+            return {phrase, duration}
+        })
+
+        const startNode = document.getElementsByClassName('start')[0]
+        let from
+        if (startNode) from = Array.from(startNode.parentNode.children).indexOf(startNode)
+        else from = 0
+        const data = {seq, from}
+        console.log({data})
+
+        let res = await fetch("/set_seq", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({data})
+        })
+        res = await res.json()
+        parseConfig(res.data)
+
+        Toastify({
+            text: res.state,
+            position: "center",
+        }).showToast();
+
+    })
+
+    addItemBtn.addEventListener('click', () => {
+        const s = document.getElementById("item").value
+        if (!s) return alert("短语不能为空")
+        insertSeqItem(document.getElementById("display-seq"), s)
+    })
+
 
     addPhraseBtn.addEventListener('click', async () => {
         const phrase = document.getElementById("phrase").value
@@ -88,6 +196,31 @@
         })
 
         res = await res.json()
+        // parseConfig(res.data)
+
+        const c = document.getElementById('phrase-content')
+        Array.from(c.children).slice(1).map(i => c.removeChild(i))
+
+        let result = res.data.split("\n")
+        let i = 0
+        while (true) {
+            let line = result[i++]
+            if (!line || line === "-1") break
+
+            if (line === "phrase") {
+                let num = parseInt(result[i++])
+
+                while (num--) {
+                    const [_phrase, size] = result[i++].split(' ')
+                    const p = document.createElement("p")
+                    p.textContent = _phrase
+                    c.appendChild(p)
+                    let _size = parseInt(size)
+                    while (_size--) i++
+                }
+            }
+        }
+
         Toastify({
             text: res.state,
             position: "center",
@@ -116,7 +249,7 @@
     moveBtn.addEventListener('click', async () => {
         const degree = document.getElementById("degreeInput").value
         const addr = get_addr_by_index(chosen_index)
-        let res = await fetch(`/move?addr=${addr}&degree=${degree}`)
+        let res = await fetch(`/move?addr=${addr}&step=${degree}`)
         res = await res.json()
         Toastify({
             text: res.state,
@@ -183,13 +316,6 @@
 
     })
 
-
-    document.addEventListener('DOMContentLoaded', async () => {
-        let res = await fetch("/read_config")
-        res = await res.json()
-        parseConfig(res.data)
-    })
-
     function get_addr_by_index(_index) {
         for (let item of addr_map) {
             if (item[1] === _index) return item[0]
@@ -213,6 +339,9 @@
         contents = []
         flip_el = []
         addr_map = new Map()
+        phrase_str = []
+        seq = []
+
         let result = content.split("\n")
         let i = 0
         while (true) {
@@ -258,13 +387,18 @@
 
                 while (num--) {
                     const [_phrase, size] = result[i++].split(' ')
+                    phrase_str.push(_phrase)
+                    let _size = parseInt(size)
+                    while (_size--) i++
+                }
+            }
 
-                    const p = document.createElement("p")
-                    p.textContent = _phrase
-                    document.getElementById('phrase-div').appendChild(p)
-                    if (parseInt(size) !== 0)
-                        i++
+            if (line === "seq") {
+                let num = parseInt(result[i++])
 
+                while (num--) {
+                    const [_phrase, duration] = result[i++].split(' ')
+                    seq.push([_phrase, duration])
                 }
 
             }
@@ -288,6 +422,25 @@
     }
 
     function fresh() {
+
+        const c = document.getElementById('phrase-content')
+        Array.from(c.children).slice(1).map(i => c.removeChild(i))
+
+        for (let s of phrase_str) {
+            const p = document.createElement("p")
+            p.textContent = s
+            c.appendChild(p)
+        }
+
+
+        const d = document.getElementById('display-seq')
+        Array.from(d.children).map(i => d.removeChild(i))
+
+        for (let s of seq) {
+            insertSeqItem(d, s[0], s[1])
+        }
+
+
         flip_pos = []
         if (contents.length === 0) return
 
@@ -330,6 +483,8 @@
             outer.addEventListener("wheel", function (event) {
                 if (event.deltaY > 0) {
                     flipDown(i)
+                } else {
+                    flipUp(i)
                 }
             })
 
@@ -337,6 +492,7 @@
             clock.appendChild(outer);
         }
         flip_el[chosen_index].classList.add("chosen")
+
     }
 
     let isFlipping = false
@@ -384,7 +540,52 @@
             // 设置前牌文字为+1后的数字
             set_style(next_ch, front)
 
-        }, 300)
+        }, 200)
+    }
+
+    function flipUp(_chosen_node_index) {
+        // 如果处于翻转中，则不执行
+        if (isFlipping) {
+            return false
+        }
+
+        const chosen_node = flip_el[_chosen_node_index];
+
+        // 设置前牌的文字
+        const front = chosen_node.firstChild
+        const ch = contents[_chosen_node_index][flip_pos[_chosen_node_index]]
+
+        set_style(ch, front)
+
+        // 计算后牌文字（越界判断）
+        let next_ch
+        if (flip_pos[_chosen_node_index] === 0) {
+            next_ch = contents[_chosen_node_index][contents[_chosen_node_index].length - 1];
+            flip_pos[_chosen_node_index] = contents[_chosen_node_index].length - 1;
+        } else {
+            next_ch = contents[_chosen_node_index][--flip_pos[_chosen_node_index]]
+        }
+
+        // 设置后牌的文字
+        const back = chosen_node.lastChild
+        set_style(next_ch, back)
+
+        // 添加go，执行翻转动画
+        chosen_node.setAttribute('class', `flip up go chosen`)
+
+        // 当翻转态设置为true
+        isFlipping = true
+        // 翻转结束后，恢复状态
+        setTimeout(function () {
+            // 去掉go
+            chosen_node.setAttribute('class', `flip up ${chosen_index === _chosen_node_index ? 'chosen' : ''}`)
+            // 当翻转态设置为false
+            isFlipping = false
+
+            // 设置前牌文字为+1后的数字
+            set_style(next_ch, front)
+
+        }, 200)
     }
 
 
@@ -466,13 +667,13 @@
 
     .flip.down.go .front:before {
         transform-origin: 50% 100%;
-        animation: frontFlipDown 0.3s ease-in-out both;
+        animation: frontFlipDown 0.2s ease-in-out both;
         box-shadow: 0 -2px 6px rgba(255, 255, 255, 0.3);
         backface-visibility: hidden;
     }
 
     .flip.down.go .back:after {
-        animation: backFlipDown 0.3s ease-in-out both;
+        animation: backFlipDown 0.2s ease-in-out both;
     }
 
     /*向上翻*/
@@ -493,13 +694,13 @@
 
     .flip.up.go .front:after {
         transform-origin: 50% 0;
-        animation: frontFlipUp 0.3s ease-in-out both;
+        animation: frontFlipUp 0.2s ease-in-out both;
         box-shadow: 0 2px 6px rgba(255, 255, 255, 0.3);
         backface-visibility: hidden;
     }
 
     .flip.up.go .back:before {
-        animation: backFlipUp 0.3s ease-in-out both;
+        animation: backFlipUp 0.2s ease-in-out both;
     }
 
     @keyframes frontFlipDown {
@@ -557,8 +758,40 @@
         vertical-align: top;
     }
 
-    #phrase-div {
+    #container {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: flex-start;
+        overflow-y: scroll;
+        max-height: 40vh;
+    }
+
+
+    .item {
+        margin: 10px;
+        border: 1px solid #ccc;
+        padding: 4px;
+        border-radius: 4px;
+        color: #666;
+        cursor: move;
+    }
+
+    #phrase-content, #display-seq {
         text-align: center;
+    }
+
+    #display-seq input {
+        max-width: 6em;
+        margin: 0 10px 0 20px;
+    }
+
+    .phrase {
+        display: inline-block;
+    }
+
+    .start {
+        background-color: lightgreen;
     }
 </style>
 

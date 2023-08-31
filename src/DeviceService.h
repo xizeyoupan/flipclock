@@ -10,11 +10,11 @@
 
 std::map<int, int> scan_device_and_content_provider();
 
-double move_degree(double degree);
+int move_step(int step);
 
 int set_switch(int addr, int state);
 
-int set_switch();
+int set_switch_from_status();
 
 int reset_pos(int addr);
 
@@ -26,7 +26,7 @@ int move_offset(int addr);
 
 int get_current_index(int addr);
 
-int move_to_flip(std::vector<int> index);
+int move_to_flip(const std::map<int, int>& target);
 
 int move_to_zero_pos_all();
 

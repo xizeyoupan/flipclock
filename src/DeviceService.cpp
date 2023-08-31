@@ -4,18 +4,19 @@
 
 #include "DeviceService.h"
 
+int base_step = 17;
 extern std::map<int, int> addr_map;
-extern std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
+extern std::map<int, std::pair<int, int>> zero_pos; // addr, index, offset
 extern std::vector<std::vector<std::string>> contents;
 
-extern std::map<int, double> flip_degree;
-std::map<int, int> switch_status;
+extern std::map<int, int> flip_pos;
+extern std::map<int, int> switch_status;
 extern std::map<std::string, std::vector<std::string>(*)()> providers;
 extern std::map<std::string, std::map<int, int>> phrase;
+std::map<int, int> passing_mag;
 
 Stepper stepper = Stepper(stepsPerRevolution, IN1, IN3, IN2, IN4);
 
-double step_remainder = 0;
 
 std::map<int, int> scan_device_and_content_provider() {
 
@@ -56,15 +57,15 @@ int move_to_zero_pos_all() {
         if (not_on_mag(item.first))item.second = 0;
         else item.second = 1;
     }
-    set_switch();
+    set_switch_from_status();
 
     while (!std::all_of(switch_status.begin(), switch_status.end(), [](std::pair<int, int> p) {
         return p.second == 0;
     })) {
-        move_degree(1.0);
+        move_step(base_step);
         for (auto &item: switch_status) {
             if (not_on_mag(item.first)) {
-                item.second = 0;
+                switch_status[item.first] = 0;
                 set_switch(item.first, 0);
             }
         }
@@ -74,15 +75,15 @@ int move_to_zero_pos_all() {
         if (not_on_mag(item.first))item.second = 1;
         else item.second = 0;
     }
-    set_switch();
+    set_switch_from_status();
 
     while (!std::all_of(switch_status.begin(), switch_status.end(), [](std::pair<int, int> p) {
         return p.second == 0;
     })) {
-        move_degree(1.0);
+        move_step(1.0);
         for (auto &item: switch_status) {
             if (!not_on_mag(item.first)) {
-                item.second = 0;
+                switch_status[item.first] = 0;
                 set_switch(item.first, 0);
             }
         }
@@ -90,7 +91,7 @@ int move_to_zero_pos_all() {
 
     for (const auto &item: zero_pos) {
         move_offset(item.first);
-        flip_degree[item.first] = item.second.second;
+        flip_pos[item.first] = item.second.second;
     }
 
     release_motor();
@@ -100,47 +101,36 @@ int move_to_zero_pos_all() {
 
 
 int move_offset(int addr) {
-    double _offset = zero_pos[addr].second;
+    int _offset = zero_pos[addr].second;
 
     for (const auto &item: addr_map) {
         if (item.first != addr)set_switch(item.first, LOW);
         else set_switch(addr, HIGH);
     }
-
-    move_degree(_offset);
+    passing_mag[addr] = 1;
+    move_step(_offset);
 
     return 0;
 }
 
-double move_degree(double degree) {
+int move_step(int step) {
 
-    if (abs(degree) < 1e-2)return 0;
+    if (step == 0)return 0;
 
-    if (degree < 0)degree = -degree;
-    double steps = 1.0 * degree * stepsPerRevolution / 360.0;
-
-    int num = floor(steps);
-
-    double _real_degree = 1.0 * num * 360.0 / stepsPerRevolution;
+    if (step < 0)step = -step;
 
     for (const auto &item: switch_status) {
         if (item.second == 1) {
-            flip_degree[item.first] += _real_degree;
-            flip_degree[item.first] = fmod(flip_degree[item.first], 360.0);
+            flip_pos[item.first] += step;
         }
     }
 
-    step_remainder += steps - num;
-    if (step_remainder > 1) {
-        step_remainder--;
-        num++;
-    }
-    stepper.step(-num);
+    stepper.step(-step);
 
-    return _real_degree;
+    return step;
 }
 
-int set_switch() {
+int set_switch_from_status() {
     for (const auto &item: switch_status) {
         if (item.first == MASTER_ADDR) {
             digitalWrite(CTRL, item.second);
@@ -154,27 +144,18 @@ int set_switch() {
 }
 
 int set_switch(int addr, int state) {
-    if (addr_map.find(addr) == addr_map.end())
-        return -1;
-
-    switch_status[addr] = state;
-
     if (addr == MASTER_ADDR) {
         digitalWrite(CTRL, state);
         return 0;
+    } else {
+        Wire.beginTransmission(addr);
+        Wire.write(state);
+        int code = Wire.endTransmission();
+        return code;
     }
-
-    Wire.beginTransmission(addr);
-    Wire.write(state);
-    int code = Wire.endTransmission();
-    return code;
-
 }
 
 int not_on_mag(int addr) {
-    if (addr_map.find(addr) == addr_map.end())
-        return -1;
-
     int pos = -1;
 
     if (addr == MASTER_ADDR) {
@@ -185,43 +166,41 @@ int not_on_mag(int addr) {
             pos = Wire.read();
         }
     }
-
     return pos;
 }
 
 
 int reset_pos(int addr) {
-    if (addr_map.find(addr) == addr_map.end())
-        return -1;
 
     for (const auto &item: addr_map) {
         if (item.first != addr)set_switch(item.first, LOW);
         else set_switch(addr, HIGH);
     }
 
-
     while (!not_on_mag(addr)) {
-        move_degree(1);
+        move_step(6);
     }
     while (not_on_mag(addr)) {
-        move_degree(1);
+        move_step(6);
     }
 
     release_motor();
 
-    flip_degree[addr] = 0;
+    flip_pos[addr] = 0;
+    zero_pos[addr].second = 0;
     return 0;
 }
 
 int release_motor() {
     for (const auto &item: addr_map) {
         set_switch(item.first, LOW);
+        switch_status[item.first] = 0;
     }
 
-    digitalWrite(IN1, LOW);
-    digitalWrite(IN2, LOW);
-    digitalWrite(IN3, LOW);
-    digitalWrite(IN4, LOW);
+//    digitalWrite(IN1, LOW);
+//    digitalWrite(IN2, LOW);
+//    digitalWrite(IN3, LOW);
+//    digitalWrite(IN4, LOW);
 
     return 0;
 }
@@ -229,16 +208,114 @@ int release_motor() {
 
 int get_current_index(int addr) {
     int i = 0;
-    if (zero_pos[addr].second <= flip_degree[addr] and flip_degree[addr] <= 360.0) {
-        i = (flip_degree[addr] - zero_pos[addr].second) / degreePerFlip;
-    } else if (0 <= flip_degree[addr] and flip_degree[addr] <= zero_pos[addr].second) {
+    if (zero_pos[addr].second <= flip_pos[addr] and flip_pos[addr] <= stepsPerRevolution) {
+        i = (flip_pos[addr] - zero_pos[addr].second) / stepPerFlip;
+    } else if (0 <= flip_pos[addr] and flip_pos[addr] <= zero_pos[addr].second) {
         i = 39;
     }
 
     i = (i + zero_pos[addr].first) % 40;
+
+    Serial.print("step: ");
+    Serial.print(flip_pos[addr]);
+    Serial.print(", addr: ");
+    Serial.print(addr);
+    Serial.print(", now index: ");
+    Serial.print(i);
+    Serial.print(", now content: ");
+    Serial.println(contents[addr_map[addr]][i].c_str());
+
     return i;
 }
 
-int move_to_flip(std::vector<int> index) {
+int move_to_flip(const std::map<int, int> &target) {
+
+    std::map<int, int> current_index;
+    std::map<int, int> target_step;
+
+//    for (auto &item: switch_status) {
+//        item.second = 0;
+//    }
+//    set_switch_from_status();
+
+
+    for (const auto &item: target) {
+        current_index[item.first] = get_current_index(item.first);
+        int move_flip_num = item.second - current_index[item.first];
+        if (move_flip_num < 0)move_flip_num = 40 + move_flip_num;
+        target_step[item.first] = (move_flip_num * stepPerFlip + flip_pos[item.first]) % stepsPerRevolution;
+
+//        set_switch(item.first, 1);
+//        move_step(move_flip_num * stepPerFlip);
+//        set_switch(item.first, 0);
+
+
+        Serial.print("addr: ");
+        Serial.print(item.first);
+        Serial.print(", move_flip_num ");
+        Serial.print(move_flip_num);
+        Serial.print(", target: ");
+        Serial.println(target_step[item.first]);
+
+    }
+
+//    return 0;
+
+    auto on_target = [&](const std::pair<int, double> &item) {
+        return abs(target_step[item.first] - item.second) < base_step;
+    };
+
+    for (auto &item: flip_pos) {
+        if (on_target(item)) {
+            switch_status[item.first] = 0;
+            Serial.print(item.first);
+            Serial.println(" on target, set 0");
+        } else {
+            Serial.print(item.first);
+            Serial.println(" not on target, set 1");
+            switch_status[item.first] = 1;
+        }
+    }
+    set_switch_from_status();
+
+    while (!std::all_of(switch_status.begin(), switch_status.end(), [](std::pair<int, int> p) {
+        return p.second == 0;
+    })) {
+        set_switch_from_status();
+        move_step(base_step);
+
+        for (const auto &item: flip_pos) {
+            Serial.print(item.first);
+            Serial.print(" : ");
+            Serial.print(item.second);
+            Serial.print(", target: ");
+            Serial.print(target_step[item.first]);
+            Serial.print(", sw: ");
+            Serial.println(switch_status[item.first]);
+
+            if (switch_status[item.first] == 1 and on_target(item)) {
+                set_switch(item.first, 0);
+                switch_status[item.first] = 0;
+                Serial.print(item.first);
+                Serial.println(" reach pos.");
+            }
+
+            if (not_on_mag(item.first)) {
+                passing_mag[item.first] = 0;
+            } else {
+                if (passing_mag[item.first] == 0) {
+                    Serial.print(item.first);
+                    Serial.println(" reach mag.");
+                    flip_pos[item.first] = 0;
+                    move_offset(item.first);
+                }
+            }
+
+        }
+        Serial.println();
+    }
+
+    release_motor();
+
     return 0;
 }

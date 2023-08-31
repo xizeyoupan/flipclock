@@ -7,8 +7,14 @@
 
 #include "config.h"
 
-std::vector<std::string> displayTime();
+void init_external_peripheral();
 
-std::vector<int> getIndex(std::vector<std::string> s);
+std::map<int, int> displayTime();
+
+std::map<int, int> displayRandom();
+
+std::map<int, int> displayTemperature();
+
+std::map<int, int> getIndex(const std::map<int, std::string> &s);
 
 #endif //FLIPCLOCK_CONTENTPROVIDER_H

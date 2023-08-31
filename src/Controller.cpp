@@ -16,13 +16,18 @@ std::string post_data;
 bool post_data_end;
 
 std::map<int, int> addr_map;
-std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
+std::map<int, std::pair<int, int>> zero_pos; // addr, index, offset
 std::vector<std::vector<std::string>> contents;
 
-std::map<int, double> flip_degree;
+std::map<int, int> flip_pos;
 std::map<std::string, std::map<int, int>> phrase; // phrase, addr, content index
+std::map<int, int> switch_status;
 
-extern std::map<std::string, std::vector<std::string>(*)()> providers;
+std::vector<std::pair<std::string, int>> seq;
+
+extern std::map<std::string, std::map<int, int>(*)()> providers;
+
+extern int base_step;
 
 
 void init_server() {
@@ -41,6 +46,9 @@ void init_server() {
     routes.insert({"/set_phrase", "json"});
     routes.insert({"/test", ""});
     routes.insert({"/reboot", ""});
+    routes.insert({"/set_seq", "json"});
+    routes.insert({"/set_base_step", ""});
+    routes.insert({"/move_to_zero", ""});
 
 
     for (const auto &item: routes) {
@@ -60,7 +68,7 @@ void init_server() {
                     item.first.c_str(),
                     HTTP_POST,
                     [](AsyncWebServerRequest *request) {},
-                    NULL,
+                    nullptr,
                     [=]
                             (AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {
 
@@ -115,22 +123,24 @@ void handle_url() {
         doc["data"] = "";
 
     } else if (url_handle == "/move") {
-        AsyncWebParameter *d = global_request->getParam("degree");
+        AsyncWebParameter *d = global_request->getParam("step");
         AsyncWebParameter *a = global_request->getParam("addr");
 
-        double degrees = d->value().toDouble();
+        int step = d->value().toInt();
         int addr = a->value().toInt();
 
         set_switch(addr, HIGH);
 
+        zero_pos[addr].second += step;
+
+        std::string config = format_config();
+        write_config(CONFIG_PATH, config.c_str());
+
         doc["state"] = "success";
-        doc["data"] = "";
+        doc["data"] = config;
 
-        move_degree(degrees);
+        move_step(step);
         release_motor();
-
-        zero_pos[addr].second = flip_degree[addr];
-
 
     } else if (url_handle == "/scan") {
 
@@ -166,7 +176,6 @@ void handle_url() {
 
     } else if (url_handle == "/save_config") {
 
-
         std::string config = format_config();
         write_config(CONFIG_PATH, config.c_str());
 
@@ -189,6 +198,7 @@ void handle_url() {
         serializeJson(doc, *res);
         global_request->send(res);
         url_handle = "";
+
         reset_pos(addr);
 
         return;
@@ -223,7 +233,7 @@ void handle_url() {
         write_config(CONFIG_PATH, config.c_str());
 
         doc["state"] = "success";
-        doc["data"] = "";
+        doc["data"] = config;
 
     } else if (url_handle == "/set_zero_pos") {
         AsyncWebParameter *a = global_request->getParam("addr");
@@ -240,13 +250,79 @@ void handle_url() {
         doc["data"] = "";
 
     } else if (url_handle == "/test") {
+        AsyncWebParameter *p = global_request->getParam("p");
+        auto volatile s = p->value().c_str();
 
-        auto s = providers["显示时间"]();
-        auto i = getIndex(s);
+        doc["state"] = "success";
+        doc["data"] = "";
 
-        for (const auto &item: i) {
-            Serial.println(item);
+        std::string ss(s);
+
+        serializeJson(doc, *res);
+        global_request->send(res);
+        url_handle = "";
+
+//        move_to_zero_pos_all();
+
+
+        if (providers.find(ss) != providers.end()) {
+            move_to_flip(providers[s]());
+        } else if (phrase.find(ss) != phrase.end()) {
+            move_to_flip(phrase[s]);
+        } else {
+            Serial.println(5565);
+
         }
+
+        return;
+
+    } else if (url_handle == "/set_seq") {
+        while (!post_data_end)delay(1);
+
+        auto err = deserializeJson(doc, post_data.c_str());
+        if (err) {
+            Serial.print("deserializeJson() failed with code ");
+            Serial.println(err.c_str());
+        }
+
+        seq.clear();
+        int from = doc["data"]["from"];
+
+        for (JsonObject data_item: doc["data"]["seq"].as<JsonArray>()) {
+
+            const char *_phrase = data_item["phrase"];
+            int duration = data_item["duration"];
+
+            if (phrase.find(_phrase) == phrase.end()) {
+                Serial.println("Wrong phrase: ");
+                Serial.println(_phrase);
+                continue;
+            }
+
+            seq.emplace_back(_phrase, duration);
+
+        }
+
+        std::string output = format_config();
+        write_config(CONFIG_PATH, output.c_str());
+
+        doc["state"] = "success";
+        doc["data"] = output;
+
+    } else if (url_handle == "/move_to_zero") {
+
+        doc["state"] = "success";
+        doc["data"] = "";
+        serializeJson(doc, *res);
+        global_request->send(res);
+        url_handle = "";
+
+        move_to_zero_pos_all();
+
+        return;
+    } else if (url_handle == "/set_base_step") {
+        AsyncWebParameter *s = global_request->getParam("s");
+        base_step = s->value().toInt();
         doc["state"] = "success";
         doc["data"] = "";
 
@@ -256,7 +332,8 @@ void handle_url() {
 
 
     serializeJson(doc, *res);
-    global_request->send(res);
+
+    if (global_request->client() != nullptr)global_request->send(res);
     url_handle = "";
 
 }

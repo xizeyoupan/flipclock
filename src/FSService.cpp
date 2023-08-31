@@ -9,9 +9,10 @@
 #include "DeviceService.h"
 
 extern std::map<int, int> addr_map;
-extern std::map<int, std::pair<int, double>> zero_pos; // addr, index, offset
+extern std::map<int, std::pair<int, int>> zero_pos; // addr, index, offset
 extern std::vector<std::vector<std::string>> contents;
 extern std::map<std::string, std::map<int, int>> phrase;
+extern std::vector<std::pair<std::string, int>> seq;
 
 std::string format_config() {
     // format and read config from mem
@@ -63,7 +64,16 @@ std::string format_config() {
             output.append(std::to_string(p.second));
             output.push_back('\n');
         }
+    }
 
+    output.append("seq\n");
+    output.append(std::to_string(seq.size()));
+    output.append("\n");
+    for (const auto &item: seq) {
+        output.append(item.first);
+        output.append(" ");
+        output.append(std::to_string(item.second));
+        output.append("\n");
     }
 
     output.append("-1\n");
@@ -73,10 +83,13 @@ std::string format_config() {
 void read_config(const char *config_path, std::string &original_data) {
     // parse and load config from file
 
+    Serial.println("reading config...");
     auto config_file = SPIFFS.open(config_path);
+    Serial.println("config opened.");
 
     if (!config_file) {
         Serial.println("There was an error opening the config file for reading");
+        delay(2);
         return;
     }
 
@@ -128,7 +141,7 @@ void read_config(const char *config_path, std::string &original_data) {
             iss >> num;
             while (num--) {
                 int addr, index;
-                double offset;
+                int offset;
                 iss >> addr >> index >> offset;
                 zero_pos[addr] = std::make_pair(index, offset);
             }
@@ -148,6 +161,18 @@ void read_config(const char *config_path, std::string &original_data) {
                 }
 
                 phrase[_phrase] = index;
+            }
+        }
+
+        if (op == "seq") {
+            seq.clear();
+            int num;
+            iss >> num;
+            while (num--) {
+                std::string _phrase;
+                int duration;
+                iss >> _phrase >> duration;
+                seq.emplace_back(_phrase, duration);
             }
         }
     }

@@ -3,6 +3,7 @@
 //
 
 #include "init.h"
+extern Stepper stepper;
 
 void init_all() {
     pinMode(LED_PIN, OUTPUT);
@@ -17,4 +18,8 @@ void init_all() {
     pinMode(SW2, INPUT);
 
     digitalWrite(CTRL, 1);
+
+    attachInterrupt(SW2, []() {
+        stepper.setSpeed(digitalRead(SW2) ? HIGH_RPM : LOW_RPM);
+    }, CHANGE);
 }

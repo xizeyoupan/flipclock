@@ -6,11 +6,11 @@
 #include "Controller.h"
 #include "DeviceService.h"
 #include "FSService.h"
+#include "ContentProvider.h"
 
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 extern Stepper stepper;
-extern NTPClient timeClient;
 
 extern std::map<int, int> addr_map;
 
@@ -61,15 +61,20 @@ void setup() {
         Serial.println("Error setting up MDNS responder!");
     }
 
-    timeClient.begin();
-
     scan_device_and_content_provider();
+
     std::string config;
     read_config(CONFIG_PATH, config);
+    Serial.println("Config:");
     Serial.println(config.c_str());
 
+    Serial.println("reset pos...");
     move_to_zero_pos_all();
 
+    Serial.println("init peripheral...");
+    init_external_peripheral();
+
+    Serial.println("init server...");
     init_server();
 
 }
